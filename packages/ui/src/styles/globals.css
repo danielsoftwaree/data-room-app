@@ -5,8 +5,6 @@
 /* Scan the ui package sources; the consuming app's sources are auto-detected. */
 @source '../**/*.{ts,tsx}';
 
-@custom-variant dark (&:is(.dark *));
-
 @layer base {
   * {
     @apply border-border outline-ring/50;

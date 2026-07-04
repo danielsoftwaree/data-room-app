@@ -6,6 +6,7 @@ import type {
   DeleteDataroomResult,
   DeleteNodeResult,
   RenameNodeRequest,
+  UploadFileRequest,
 } from '@repo/contracts';
 import type { Dataroom } from '@repo/domain';
 
@@ -74,6 +75,18 @@ export class RenameDto implements RenameNodeRequest {
   @ApiProperty()
   @IsString()
   name!: string;
+}
+
+export class UploadFileDto implements UploadFileRequest {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    required: false,
+    description: 'null/omitted = dataroom root',
+  })
+  @IsOptional()
+  @IsString()
+  parentId!: string | null;
 }
 
 export class DeleteDataroomResultDto implements DeleteDataroomResult {

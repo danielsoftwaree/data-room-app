@@ -23,6 +23,10 @@ export interface CreateFolderRequest {
   name: string;
 }
 
+export interface UploadFileRequest {
+  parentId: string | null;
+}
+
 export interface RenameNodeRequest {
   name: string;
 }

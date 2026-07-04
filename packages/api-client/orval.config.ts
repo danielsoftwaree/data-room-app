@@ -9,7 +9,6 @@ export default defineConfig({
       client: 'react-query',
       httpClient: 'fetch',
       clean: true,
-      prettier: true,
       override: {
         mutator: {
           path: './src/mutator.ts',

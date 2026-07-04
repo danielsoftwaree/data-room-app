@@ -59,38 +59,42 @@ CRUD и списки). Ниже — что стоит за каждым пунк
 
 ## Блок 2. Что делаем: состав решения
 
-### Стек
+### Стек и структура (реализовано)
 
-- **Vite + React 18 + TypeScript** — быстрый старт SPA.
-- **Tailwind + shadcn/ui** — их стек; готовые доступные примитивы (Dialog, DropdownMenu, ContextMenu, Toast).
-- **TanStack Query** поверх мокнутого async-«API» — как в их проде, показывает владение инструментом.
-- **IndexedDB (Dexie)** для метаданных и PDF-блобов — переживает перезагрузку страницы, честный мок бэкенда.
-- **react-router / TanStack Router** — URL отражает текущую папку (deep-linking, back/forward).
+Монорепозиторий: **Bun workspaces + Turborepo** (см. `docs/monorepo.md`).
 
-### Модель данных
+- **apps/web** — Vite + React 18 + TypeScript, прокси `/api` → `:3000`. Здесь живёт весь Data Room UX.
+- **apps/api** — NestJS, намеренно тонкий (`/api/health`, контрактная поверхность): тестовое разрешает
+  мокнутый бэкенд, 80% усилий — во фронте.
+- **packages/domain** — чистая доменная модель и бизнес-правила (см. ниже), без React/Nest/browser API.
+- **packages/contracts** — DTO-поверхность web↔api.
+- **packages/ui** — примитивы дизайн-системы (Button, EmptyState), без бизнес-логики.
+- **packages/config** — глобальные константы (лимиты загрузки, API prefix).
+- **tooling/** — общие конфиги как workspace-пакеты: `@repo/typescript-config`, `@repo/lint-config`,
+  `@repo/format-config`, `@repo/tailwind-config` (design-токены `@theme`).
+- Качество: turbo task graph (build/typecheck), root ESLint + Prettier — всё зелёное.
+
+Ещё не подключено (следующие шаги): **Tailwind + shadcn/ui**, **TanStack Query**,
+**IndexedDB (Dexie)** для метаданных и PDF-блобов, **роутер** (URL отражает текущую папку).
+
+### Модель данных (реализована в `@repo/domain`)
 
 ```ts
 // одна таблица узлов (adjacency list)
-interface Node {
-  id: string; // uuid
-  parentId: string | null; // null = корень датарума
-  dataroomId: string;
-  type: 'folder' | 'file';
-  name: string; // уникально в рамках (parentId, type-агностично)
-  size?: number; // файлы
-  blobKey?: string; // ссылка на blob в отдельной таблице
-  createdAt: number;
-  updatedAt: number;
-}
+type DataroomNode = FolderNode | FileNode; // общее: id, dataroomId, parentId (null = корень),
+// name, createdAt, updatedAt; FileNode добавляет size
 interface Dataroom {
   id: string;
   name: string;
   createdAt: number;
+  updatedAt: number;
 }
 ```
 
-- Уникальность имени в рамках папки; при конфликте — предложение «file (1).pdf» или ошибка с фокусом на поле.
-- Каскадное удаление — обход поддерева.
+Правила уже в `@repo/domain` как чистые функции: `validateNodeName` (пустые/длинные/запрещённые
+символы), `isNameTaken` + `nextAvailableName` («file (1).pdf», case-insensitive),
+`sortNodes` (папки сверху, по имени), `collectSubtreeIds` (каскадное удаление / подсчёт).
+Хранение блобов (blobKey → отдельная таблица в Dexie) добавим вместе с data layer.
 
 ### Функционал (обязательный)
 
@@ -123,8 +127,11 @@ interface Dataroom {
 
 ## Блок 3. Порядок работы (тайм-бокс ~5–6 ч)
 
-1. **Скелет** (~30 мин): Vite + TS + Tailwind + shadcn, роутер, layout.
-2. **Data layer** (~1 ч): Dexie-схема, repo-слой (async API-подобные функции), TanStack Query хуки.
+1. ✅ **Скелет** — сделано шире плана: монорепа Bun + Turborepo, apps/web + apps/api,
+   packages (domain/contracts/ui/config), tooling-конфиги, lint/format, docs.
+   Осталось из скелета: Tailwind + shadcn в apps/web, роутер.
+2. **Data layer** (~1 ч): Dexie-схема, repo-слой (async API-подобные функции), TanStack Query хуки —
+   поверх типов и правил из `@repo/domain`.
 3. **CRUD папок + навигация** (~1–1.5 ч): дерево, breadcrumbs, create/rename/delete с каскадом.
 4. **Файлы** (~1–1.5 ч): upload (валидация PDF), просмотр, rename/delete.
 5. **Edge cases + полировка** (~1 ч): чек-лист выше, пустые состояния, тосты.

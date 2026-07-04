@@ -6,3 +6,5 @@ bun.lock
 package-lock.json
 test-task.md
 vacancy_text.txt
+packages/api-client/src/generated
+apps/api/openapi.json

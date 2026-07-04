@@ -6,3 +6,7 @@ dist/
 .DS_Store
 *.local
 *.tsbuildinfo
+
+# generated API pipeline outputs (bun run generate)
+apps/api/openapi.json
+packages/api-client/src/generated/

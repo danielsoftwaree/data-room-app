@@ -12,6 +12,24 @@
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
+    },
+    "api#openapi": {
+      "dependsOn": ["api#build"],
+      "outputs": ["openapi.json"]
+    },
+    "@repo/api-client#generate": {
+      "dependsOn": ["api#openapi"],
+      "outputs": ["src/generated/**"]
+    },
+    "@repo/api-client#typecheck": {
+      "dependsOn": ["@repo/api-client#generate"]
+    },
+    "web#build": {
+      "dependsOn": ["^build", "@repo/api-client#generate"],
+      "outputs": ["dist/**"]
+    },
+    "web#typecheck": {
+      "dependsOn": ["^build", "@repo/api-client#generate"]
     }
   }
 }

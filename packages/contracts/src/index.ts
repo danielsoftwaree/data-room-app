@@ -1,6 +1,9 @@
 /**
  * Public contract surface between web and api.
  * DTOs only - no implementation, no framework imports.
+ *
+ * These interfaces are the authored source of truth; apps/api DTO classes
+ * implement them, and @repo/api-client is generated from the resulting OpenAPI schema.
  */
 import type { Dataroom, DataroomNode } from '@repo/domain';
 
@@ -22,6 +25,14 @@ export interface CreateFolderRequest {
 
 export interface RenameNodeRequest {
   name: string;
+}
+
+export interface DeleteDataroomResult {
+  deletedNodeIds: string[];
+}
+
+export interface DeleteNodeResult {
+  deletedIds: string[];
 }
 
 export interface ApiErrorResponse {

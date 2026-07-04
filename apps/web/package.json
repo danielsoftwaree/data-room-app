@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@repo/api-client": "workspace:*",
     "@repo/config": "workspace:*",
     "@repo/contracts": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@tanstack/react-query": "^5.62.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

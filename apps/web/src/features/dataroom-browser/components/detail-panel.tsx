@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getApiErrorMessage, useGetNodeContent, useListActivity } from '@repo/api-client';
-import type { ActivityDto, UserDto } from '@repo/api-client';
+import type { UserDto } from '@repo/api-client';
 import type { DataroomNode, FileNode } from '@repo/domain';
 import { FilePdfIcon, FolderIcon } from '@phosphor-icons/react';
 import { Button } from '@repo/ui/components/button';
@@ -12,6 +12,7 @@ import { childrenOf, folderPath, subtreeCounts } from '../../../shared/node-tree
 import { formatCount, formatDate, formatFileSize } from '../../../shared/format';
 import { PdfDocument, PdfPage } from '../../../shared/pdf-viewer';
 import { useObjectUrl } from '../../../shared/use-object-url';
+import { activityLabel } from '../helpers/activity-label';
 
 interface DetailPanelProps {
   dataroomId: string;
@@ -236,20 +237,4 @@ function ActivityList({ dataroomId, nodeId }: Readonly<{ dataroomId: string; nod
       ))}
     </ul>
   );
-}
-
-function activityLabel(entry: ActivityDto): string {
-  const labels: Record<ActivityDto['action'], string> = {
-    'dataroom.created': 'Data room created',
-    'folder.created': 'Folder created',
-    'file.uploaded': 'File uploaded',
-    'node.renamed': 'Renamed',
-    'node.moved': 'Moved',
-    'node.deleted': 'Deleted',
-    'node.restored': 'Restored',
-    'member.added': 'Member added',
-    'member.removed': 'Member removed',
-    'member.updated': 'Member updated',
-  };
-  return entry.nodeName ? `${labels[entry.action]} - ${entry.nodeName}` : labels[entry.action];
 }

@@ -3,4 +3,4 @@
  * tree (navigation, folder CRUD, PDF upload & preview).
  * The app shell imports ONLY from this barrel.
  */
-export { DataroomBrowserScreen } from './components/DataroomBrowserScreen';
+export { DataroomBrowserScreen } from './components/dataroom-browser-screen';

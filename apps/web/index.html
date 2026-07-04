@@ -12,14 +12,11 @@
       rel="stylesheet"
     />
     <script>
-      // Apply the saved/system theme before first paint (no flash of the wrong theme).
+      // Apply the saved theme before first paint (no flash of the wrong theme).
+      // Default is light: only go dark when the user has explicitly chosen it.
       (function () {
         try {
-          var stored = localStorage.getItem('theme');
-          if (
-            stored === 'dark' ||
-            (!stored && matchMedia('(prefers-color-scheme: dark)').matches)
-          ) {
+          if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.classList.add('dark');
           }
         } catch (error) {

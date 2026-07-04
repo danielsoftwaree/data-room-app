@@ -3,6 +3,7 @@ import {
   createDataroom,
   createFile,
   createFolder,
+  getMe,
   listDatarooms,
   listUsers,
 } from '@repo/api-client';
@@ -64,7 +65,11 @@ export async function createSampleDataroom(): Promise<Dataroom> {
 }
 
 async function seedMembers(dataroomId: string): Promise<void> {
-  const users = (await listUsers()).data.slice(1, 5);
+  // The current user is already the room owner (createDataroom adds them), so
+  // exclude them here — re-adding an existing member is a 409 that would fail
+  // the whole sample after the room was already created.
+  const me = (await getMe()).data;
+  const users = (await listUsers()).data.filter((user) => user.id !== me.id).slice(0, 4);
   const roles = ['editor', 'viewer', 'viewer', 'viewer'] as const;
   await Promise.all(
     users.map((user, index) => addMember(dataroomId, { userId: user.id, role: roles[index] })),

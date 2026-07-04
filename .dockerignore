@@ -1,0 +1,16 @@
+# Keep build contexts lean and deterministic: never ship host artifacts into
+# the image, let `bun install` + the build produce them fresh inside.
+node_modules
+**/node_modules
+dist
+**/dist
+.turbo
+**/.turbo
+.git
+.env
+*.local
+*.tsbuildinfo
+.DS_Store
+# generated pipeline outputs are rebuilt during the image build
+apps/api/openapi.json
+packages/api-client/src/generated

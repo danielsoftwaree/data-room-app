@@ -1,20 +1,103 @@
+# Full local stack: database + API + web, one command.
+#
+#   1. Put your Clerk keys in .env at the repo root:
+#        VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxx
+#        CLERK_SECRET_KEY=sk_test_xxxx
+#   2. docker compose up --build
+#   3. Open http://localhost:8080
+#
+# Flow: web (nginx) serves the static bundle and proxies /api to the api
+# service, so the browser only ever talks to localhost:8080 (no CORS). The
+# `migrate` service applies DB migrations once, then `api` starts.
+#
+#   docker compose up --build -d   # background
+#   docker compose down            # stop (keeps DB volume)
+#   docker compose down -v         # stop and wipe the database
+
 services:
   postgres:
     image: postgres:17-alpine
+    container_name: dataroom-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: dataroom
       POSTGRES_USER: dataroom
       POSTGRES_PASSWORD: dataroom
+      POSTGRES_INITDB_ARGS: '--data-checksums'
     ports:
       - '5432:5432'
     volumes:
       - dataroom-postgres:/var/lib/postgresql/data
       - ./tooling/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U dataroom -d dataroom']
+      test: ['CMD-SHELL', 'pg_isready -U dataroom -d dataroom && pg_isready -U dataroom -d dataroom_e2e']
       interval: 5s
       timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # One-shot: apply migrations against a healthy database, then exit 0.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://dataroom:dataroom@postgres:5432/dataroom
+    command: ['bun', 'run', '--cwd', 'packages/db', 'db:migrate']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: dataroom-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://dataroom:dataroom@postgres:5432/dataroom
+      # Same-origin via the nginx proxy; listed so prod-mode validation passes.
+      CORS_ORIGIN: http://localhost:8080
+      STORAGE_DRIVER: db
+      # Verifies Clerk session tokens. Taken from your .env; without it the API
+      # refuses to start in production mode.
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
       retries: 10
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Baked into the static bundle at build time. Relative /api is used so
+        # nginx can proxy it; only the Clerk key must be present.
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY in .env}
+        VITE_API_URL: ''
+    container_name: dataroom-web
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   dataroom-postgres:
+    name: dataroom-postgres

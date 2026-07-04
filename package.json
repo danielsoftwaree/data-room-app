@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
+    "tests/*",
     "tooling/*"
   ],
   "engines": {
@@ -13,9 +14,11 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:real": "VITE_ENABLE_MOCKS=false turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e --filter=@repo/e2e",
     "generate": "turbo run generate",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",

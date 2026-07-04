@@ -3,11 +3,14 @@ import { createRoot } from 'react-dom/client';
 import '@repo/ui/globals.css';
 import { App } from './app/App';
 import { AppProviders } from './app/providers';
+import { enableMocking } from './mocks/enable';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AppProviders>
-      <App />
-    </AppProviders>
-  </StrictMode>,
-);
+void enableMocking().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <AppProviders>
+        <App />
+      </AppProviders>
+    </StrictMode>,
+  );
+});

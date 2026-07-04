@@ -4,10 +4,17 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import type { S3Config } from '../../config/env/env';
 import type { BlobStorage, PutBlobInput, StoredBlob } from './blob-storage';
 
 const DELETE_BATCH_SIZE = 1000;
+
+interface S3Config {
+  endpoint: string | undefined;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
 
 /** S3-compatible blob storage (AWS S3, Railway bucket, R2, MinIO, ...). */
 export class S3BlobStorage implements BlobStorage {

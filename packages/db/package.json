@@ -8,15 +8,17 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun src/migrate.cli.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "pg": "8.22.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.0",
+    "@types/pg": "8.15.6",
     "drizzle-kit": "0.31.10"
   }
 }

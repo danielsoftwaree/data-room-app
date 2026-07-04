@@ -1,4 +1,9 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@repo/ui/components/accordion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@repo/ui/components/accordion';
 import { Badge } from '@repo/ui/components/badge';
 import { Button } from '@repo/ui/components/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/card';
@@ -33,7 +38,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="flex flex-col gap-6 scroll-mt-24">
+    <section id={id} className="flex scroll-mt-24 flex-col gap-6">
       <div className="flex flex-col gap-1">
         <span className="font-[family-name:var(--font-discord-body)] text-sm font-semibold tracking-[0.2em] text-discord-link uppercase">
           {eyebrow}
@@ -140,12 +145,16 @@ export function DesignSystemScreen() {
         <Section id="type" eyebrow="Foundations" title="Typography">
           <p className="-mt-2 max-w-2xl text-sm text-[#4e5058]">
             Display and heading type use <strong>ABC Ginto Nord</strong>; body uses{' '}
-            <strong>ggsans</strong> / ABC Ginto. Those are proprietary fonts — this page approximates
-            them with a heavy sans fallback stack, so weights and scale are representative.
+            <strong>ggsans</strong> / ABC Ginto. Those are proprietary fonts — this page
+            approximates them with a heavy sans fallback stack, so weights and scale are
+            representative.
           </p>
           <div className="flex flex-col divide-y divide-[#e5e7ef] rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb]">
             {typeScale.map((t) => (
-              <div key={t.name} className="flex flex-col gap-2 p-5 md:flex-row md:items-baseline md:gap-6">
+              <div
+                key={t.name}
+                className="flex flex-col gap-2 p-5 md:flex-row md:items-baseline md:gap-6"
+              >
                 <div className="w-40 shrink-0 text-xs text-[#4e5058]">
                   <div className="font-mono text-discord-link">{t.name}</div>
                   <div>{t.family}</div>
@@ -205,7 +214,10 @@ export function DesignSystemScreen() {
                     <span className="w-20 text-xs text-[#4e5058]">
                       {s.name} · {s.value}
                     </span>
-                    <div className="h-4 rounded-discord-xs bg-discord-green" style={{ width: s.value * 4 }} />
+                    <div
+                      className="h-4 rounded-discord-xs bg-discord-green"
+                      style={{ width: s.value * 4 }}
+                    />
                   </div>
                 ))}
               </CardContent>
@@ -219,7 +231,9 @@ export function DesignSystemScreen() {
         <Section id="components" eyebrow="Library" title="Components">
           {/* Buttons */}
           <div className="flex flex-col gap-4">
-            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">Buttons</h3>
+            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">
+              Buttons
+            </h3>
             <div className="flex flex-wrap items-center gap-3 rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb] p-6">
               <Button className="rounded-discord-sm bg-discord-primary px-6 py-5 text-base text-discord-on-primary hover:bg-discord-primary/90">
                 Primary
@@ -248,12 +262,23 @@ export function DesignSystemScreen() {
 
           {/* Badges */}
           <div className="flex flex-col gap-4">
-            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">Badges</h3>
+            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">
+              Badges
+            </h3>
             <div className="flex flex-wrap items-center gap-3 rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb] p-6">
-              <Badge className="rounded-discord-lg bg-discord-magenta px-3 py-1 text-discord-ink">New</Badge>
-              <Badge className="rounded-discord-lg bg-discord-primary px-3 py-1 text-discord-on-primary">Nitro</Badge>
-              <Badge className="rounded-discord-lg bg-discord-green px-3 py-1 text-discord-ink-dark">Online</Badge>
-              <Badge variant="outline" className="rounded-discord-lg border-[#d5d8e2] px-3 py-1 text-[#0a0d3a]">
+              <Badge className="rounded-discord-lg bg-discord-magenta px-3 py-1 text-discord-ink">
+                New
+              </Badge>
+              <Badge className="rounded-discord-lg bg-discord-primary px-3 py-1 text-discord-on-primary">
+                Nitro
+              </Badge>
+              <Badge className="rounded-discord-lg bg-discord-green px-3 py-1 text-discord-ink-dark">
+                Online
+              </Badge>
+              <Badge
+                variant="outline"
+                className="rounded-discord-lg border-[#d5d8e2] px-3 py-1 text-[#0a0d3a]"
+              >
                 Beta
               </Badge>
             </div>
@@ -261,7 +286,9 @@ export function DesignSystemScreen() {
 
           {/* Feature / stat / step cards */}
           <div className="flex flex-col gap-4">
-            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">Cards</h3>
+            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">
+              Cards
+            </h3>
             <div className="grid gap-5 md:grid-cols-3">
               <div className="flex flex-col gap-3 rounded-discord-xl bg-discord-magenta p-8 text-discord-ink">
                 <span className="font-[family-name:var(--font-discord-display)] text-2xl uppercase">
@@ -288,7 +315,10 @@ export function DesignSystemScreen() {
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {['Create a server', 'Invite your crew', 'Jump into voice'].map((step, i) => (
-                <div key={step} className="flex items-center gap-4 rounded-discord-lg bg-discord-magenta p-6 text-discord-ink">
+                <div
+                  key={step}
+                  className="flex items-center gap-4 rounded-discord-lg bg-discord-magenta p-6 text-discord-ink"
+                >
                   <span className="grid size-10 shrink-0 place-items-center rounded-discord-full bg-discord-ink/20 font-[family-name:var(--font-discord-display)] text-lg">
                     {i + 1}
                   </span>
@@ -313,16 +343,30 @@ export function DesignSystemScreen() {
 
           {/* Tabs */}
           <div className="flex flex-col gap-4">
-            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">Tabs</h3>
-            <Tabs defaultValue="voice" className="rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb] p-6">
+            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">
+              Tabs
+            </h3>
+            <Tabs
+              defaultValue="voice"
+              className="rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb] p-6"
+            >
               <TabsList className="bg-[#e8eaf1]">
-                <TabsTrigger value="voice" className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary">
+                <TabsTrigger
+                  value="voice"
+                  className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary"
+                >
                   Voice
                 </TabsTrigger>
-                <TabsTrigger value="video" className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary">
+                <TabsTrigger
+                  value="video"
+                  className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary"
+                >
                   Video
                 </TabsTrigger>
-                <TabsTrigger value="stage" className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary">
+                <TabsTrigger
+                  value="stage"
+                  className="data-[state=active]:bg-discord-primary data-[state=active]:text-discord-on-primary"
+                >
                   Stage
                 </TabsTrigger>
               </TabsList>
@@ -340,7 +384,9 @@ export function DesignSystemScreen() {
 
           {/* FAQ accordion */}
           <div className="flex flex-col gap-4">
-            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">FAQ</h3>
+            <h3 className="font-[family-name:var(--font-discord-display)] text-xl text-[#0a0d3a] uppercase">
+              FAQ
+            </h3>
             <div className="rounded-discord-lg border border-[#e5e7ef] bg-[#f7f8fb] px-6">
               <Accordion type="single" collapsible>
                 <AccordionItem value="q1" className="border-[#e5e7ef]">

@@ -1,0 +1,16 @@
+{
+  "name": "@repo/e2e",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "echo \"No root e2e tests yet\"",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.1.0",
+    "typescript": "^6.0.3"
+  }
+}

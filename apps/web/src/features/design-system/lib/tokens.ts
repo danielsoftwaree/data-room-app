@@ -33,11 +33,41 @@ export type TypeScale = {
 export const typeScale: TypeScale[] = [
   { name: 'display-xl', family: 'ABC Ginto Nord', size: '82px', weight: 800, sample: 'PLAY LOUD' },
   { name: 'display-lg', family: 'ABC Ginto Nord', size: '62px', weight: 800, sample: 'LEVEL UP' },
-  { name: 'display-md', family: 'ABC Ginto Nord', size: '56px', weight: 700, sample: 'GG WELL PLAYED' },
-  { name: 'heading-lg', family: 'ABC Ginto Nord', size: '48px', weight: 700, sample: 'Squad Goals' },
-  { name: 'heading-sm', family: 'ABC Ginto Nord', size: '22px', weight: 700, sample: 'Voice Channels' },
-  { name: 'body-lg', family: 'ABC Ginto', size: '20px', weight: 500, sample: 'Hang out with your people.' },
-  { name: 'body', family: 'ggsans', size: '16px', weight: 400, sample: 'Discord is where you can be yourself and hang out.' },
+  {
+    name: 'display-md',
+    family: 'ABC Ginto Nord',
+    size: '56px',
+    weight: 700,
+    sample: 'GG WELL PLAYED',
+  },
+  {
+    name: 'heading-lg',
+    family: 'ABC Ginto Nord',
+    size: '48px',
+    weight: 700,
+    sample: 'Squad Goals',
+  },
+  {
+    name: 'heading-sm',
+    family: 'ABC Ginto Nord',
+    size: '22px',
+    weight: 700,
+    sample: 'Voice Channels',
+  },
+  {
+    name: 'body-lg',
+    family: 'ABC Ginto',
+    size: '20px',
+    weight: 500,
+    sample: 'Hang out with your people.',
+  },
+  {
+    name: 'body',
+    family: 'ggsans',
+    size: '16px',
+    weight: 400,
+    sample: 'Discord is where you can be yourself and hang out.',
+  },
   { name: 'link', family: 'ABC Ginto', size: '16px', weight: 500, sample: 'Learn more →' },
 ];
 

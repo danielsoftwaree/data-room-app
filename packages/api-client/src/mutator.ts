@@ -32,8 +32,34 @@ function extractMessage(body: unknown): string | undefined {
 }
 
 export const customFetch = async <T>(url: string, options: RequestInit): Promise<T> => {
-  const response = await fetch(url, options);
-  const body = response.status === 204 ? undefined : await response.json().catch(() => undefined);
+  const response = await fetch(withApiBaseUrl(url), options);
+  const body = await readResponseBody(response);
   if (!response.ok) throw new ApiError(response.status, body);
   return { data: body, status: response.status, headers: response.headers } as T;
 };
+
+function withApiBaseUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return url;
+
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${path}`;
+}
+
+function getApiBaseUrl(): string {
+  const raw = (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL;
+  return raw?.trim().replace(/\/+$/, '') ?? '';
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  if (response.status === 204) return undefined;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return response.json().catch(() => undefined);
+  }
+
+  return response.blob();
+}

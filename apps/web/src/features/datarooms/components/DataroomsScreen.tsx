@@ -1,109 +1,175 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  getApiErrorMessage,
-  getListDataroomsQueryKey,
-  useCreateDataroom,
-  useGetHealth,
-  useListDatarooms,
-} from '@repo/api-client';
+import { useMemo, useState } from 'react';
+import { getApiErrorMessage, useListDatarooms } from '@repo/api-client';
+import type { Dataroom } from '@repo/domain';
 import { Button } from '@repo/ui/components/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@repo/ui/components/alert-dialog';
 import { EmptyState } from '@repo/ui/components/empty-state';
-import { Input } from '@repo/ui/components/input';
 import { Skeleton } from '@repo/ui/components/skeleton';
-import { Link } from '@tanstack/react-router';
+import { PlusIcon } from 'lucide-react';
+import { NameDialog } from '../../../shared/NameDialog';
+import { useCreateDataroom, useDeleteDataroom, useRenameDataroom } from '../hooks';
+import { DataroomRow } from './DataroomRow';
 
-/**
- * Temporary smoke screen proving the generated, typed API pipeline end to end:
- * api (Nest + swagger) -> openapi.json -> orval -> TanStack Query hooks.
- * Will be replaced by the real Data Room UX.
- */
 export function DataroomsScreen() {
-  const [name, setName] = useState('');
-  const queryClient = useQueryClient();
-  const health = useGetHealth();
   const datarooms = useListDatarooms();
-  const createDataroom = useCreateDataroom({
-    mutation: {
-      onSuccess: () => {
-        setName('');
-        void queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
-      },
-    },
-  });
+  const rooms = useMemo(() => datarooms.data?.data ?? [], [datarooms.data]);
+  const existingNames = useMemo(() => rooms.map((room) => room.name), [rooms]);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Dataroom | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Dataroom | null>(null);
+
+  const createDataroom = useCreateDataroom();
+  const renameDataroom = useRenameDataroom();
+  const deleteDataroom = useDeleteDataroom();
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Data Room</h1>
-        <div className="flex items-center gap-4">
-          <Link to="/design-system" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-            Design system
-          </Link>
-          <span className="text-sm text-muted-foreground">
-            API:{' '}
-            {health.isPending
-              ? 'checking…'
-              : health.isError
-                ? 'unreachable'
-                : health.data.data.status}
-          </span>
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <header className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Data rooms</h1>
+          <p className="text-sm text-muted-foreground">
+            Secure spaces for organizing due-diligence documents.
+          </p>
         </div>
+        <Button
+          onClick={() => {
+            createDataroom.reset();
+            setCreateOpen(true);
+          }}
+        >
+          <PlusIcon className="size-4" />
+          New data room
+        </Button>
       </header>
 
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name.trim().length === 0) return;
-          createDataroom.mutate({ data: { name } });
-        }}
-      >
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="New data room name"
-          aria-label="New data room name"
-        />
-        <Button type="submit" disabled={createDataroom.isPending}>
-          Create
-        </Button>
-      </form>
-      {createDataroom.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {getApiErrorMessage(createDataroom.error)}
-        </p>
-      ) : null}
-
       {datarooms.isPending ? (
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
+        <ul className="flex flex-col gap-2" aria-busy>
+          <Skeleton className="h-[68px] w-full" />
+          <Skeleton className="h-[68px] w-full" />
+          <Skeleton className="h-[68px] w-full" />
+        </ul>
       ) : datarooms.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          Failed to load data rooms
-        </p>
-      ) : datarooms.data.data.length === 0 ? (
+        <EmptyState
+          title="Couldn’t load data rooms"
+          description={getApiErrorMessage(datarooms.error)}
+          action={
+            <Button variant="outline" onClick={() => void datarooms.refetch()}>
+              Try again
+            </Button>
+          }
+        />
+      ) : rooms.length === 0 ? (
         <EmptyState
           title="No data rooms yet"
-          description="Create your first data room to get started."
+          description="Create your first data room to start organizing documents."
+          action={
+            <Button
+              onClick={() => {
+                createDataroom.reset();
+                setCreateOpen(true);
+              }}
+            >
+              <PlusIcon className="size-4" />
+              New data room
+            </Button>
+          }
         />
       ) : (
         <ul className="flex flex-col gap-2">
-          {datarooms.data.data.map((dataroom) => (
-            <li key={dataroom.id}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{dataroom.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">{dataroom.id}</CardContent>
-              </Card>
-            </li>
+          {rooms.map((room) => (
+            <DataroomRow
+              key={room.id}
+              dataroom={room}
+              onRename={(target) => {
+                renameDataroom.reset();
+                setRenameTarget(target);
+              }}
+              onDelete={setDeleteTarget}
+            />
           ))}
         </ul>
       )}
+
+      {/* Create */}
+      <NameDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="New data room"
+        label="Data room name"
+        submitLabel="Create"
+        placeholder="e.g. Project Titan — Due Diligence"
+        existingNames={existingNames}
+        pending={createDataroom.isPending}
+        serverError={createDataroom.isError ? getApiErrorMessage(createDataroom.error) : null}
+        onSubmit={(name) =>
+          createDataroom.mutate({ data: { name } }, { onSuccess: () => setCreateOpen(false) })
+        }
+      />
+
+      {/* Rename */}
+      <NameDialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+        title="Rename data room"
+        label="Data room name"
+        submitLabel="Rename"
+        initialName={renameTarget?.name ?? ''}
+        existingNames={existingNames.filter((name) => name !== renameTarget?.name)}
+        pending={renameDataroom.isPending}
+        serverError={renameDataroom.isError ? getApiErrorMessage(renameDataroom.error) : null}
+        onSubmit={(name) => {
+          if (!renameTarget) return;
+          renameDataroom.mutate(
+            { id: renameTarget.id, data: { name } },
+            { onSuccess: () => setRenameTarget(null) },
+          );
+        }}
+      />
+
+      {/* Delete */}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{deleteTarget?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the data room and everything inside it (all folders and
+              files). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                if (!deleteTarget) return;
+                deleteDataroom.mutate(
+                  { id: deleteTarget.id },
+                  { onSuccess: () => setDeleteTarget(null) },
+                );
+              }}
+            >
+              {deleteDataroom.isPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

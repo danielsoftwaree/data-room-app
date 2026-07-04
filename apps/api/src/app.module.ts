@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './config/database/database.module';
+import { EnvModule } from './config/env';
 import { DataroomsModule } from './modules/datarooms/datarooms.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -10,6 +11,7 @@ import { HealthModule } from './modules/health/health.module';
     // Coarse per-IP rate limit: enough to blunt bursts/scripts without
     // bothering a human clicking through the UI.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    EnvModule,
     DatabaseModule,
     HealthModule,
     DataroomsModule,

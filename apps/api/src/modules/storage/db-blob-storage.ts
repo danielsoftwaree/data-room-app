@@ -1,6 +1,6 @@
 import { fileBlobs } from '@repo/db';
+import { eq } from '@repo/db';
 import type { Database } from '@repo/db';
-import { eq } from 'drizzle-orm';
 import type { BlobStorage, PutBlobInput, StoredBlob } from './blob-storage';
 
 /**

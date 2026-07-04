@@ -1,0 +1,7 @@
+{
+  "extends": "@repo/typescript-config/node",
+  "compilerOptions": {
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["**/*.ts"]
+}

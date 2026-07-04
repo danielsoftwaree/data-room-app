@@ -1,12 +1,11 @@
 import { Global, Inject, Injectable, Module } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
-import type { Database } from '@repo/db';
-import * as schema from '@repo/db';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
-import { getDatabasePoolMax, getDatabaseUrl } from '../env/env';
-import { DatabaseMigrator } from './database.migrator';
+import { createDatabase } from '@repo/db';
+import type { Database, DatabaseConnection, Pool } from '@repo/db';
+import { EnvService } from '../env';
 import { DRIZZLE, PG_POOL } from './database.tokens';
+
+const DATABASE_CONNECTION = Symbol('DATABASE_CONNECTION');
 
 @Injectable()
 class PgPoolShutdown implements OnApplicationShutdown {
@@ -21,21 +20,26 @@ class PgPoolShutdown implements OnApplicationShutdown {
 @Module({
   providers: [
     {
-      provide: PG_POOL,
-      useFactory: () =>
-        new Pool({
-          connectionString: getDatabaseUrl(),
-          max: getDatabasePoolMax(),
+      provide: DATABASE_CONNECTION,
+      inject: [EnvService],
+      useFactory: (env: EnvService): DatabaseConnection =>
+        createDatabase({
+          url: env.get('DATABASE_URL'),
+          poolMax: env.get('DATABASE_POOL_MAX'),
         }),
     },
     {
-      provide: DRIZZLE,
-      inject: [PG_POOL],
-      useFactory: (pool: Pool): Database => drizzle(pool, { schema }),
+      provide: PG_POOL,
+      inject: [DATABASE_CONNECTION],
+      useFactory: (connection: DatabaseConnection): Pool => connection.pool,
     },
-    DatabaseMigrator,
+    {
+      provide: DRIZZLE,
+      inject: [DATABASE_CONNECTION],
+      useFactory: (connection: DatabaseConnection): Database => connection.db,
+    },
     PgPoolShutdown,
   ],
-  exports: [DRIZZLE, DatabaseMigrator],
+  exports: [DRIZZLE],
 })
 export class DatabaseModule {}

@@ -6,17 +6,16 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src",
+    "test": "bun test src tests",
     "start": "nest start",
-    "openapi": "nest build && node dist/openapi.js",
-    "db:generate": "bun run --cwd ../../packages/db db:generate",
-    "db:migrate": "bun run --cwd ../../packages/db db:migrate",
-    "db:studio": "bun run --cwd ../../packages/db db:studio"
+    "start:prod": "node dist/main.js",
+    "openapi": "nest build && node dist/openapi.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1079.0",
     "@clerk/backend": "3.10.0",
     "@nestjs/common": "^11.1.27",
+    "@nestjs/config": "^4",
     "@nestjs/core": "^11.1.27",
     "@nestjs/platform-express": "^11.1.27",
     "@nestjs/swagger": "^11.4.5",
@@ -27,19 +26,17 @@
     "@repo/domain": "workspace:*",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "drizzle-orm": "0.45.2",
     "helmet": "^8.2.0",
-    "pg": "8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.23",
     "@nestjs/testing": "^11.1.27",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.0",
-    "@types/pg": "8.15.6",
     "typescript": "^6.0.3"
   }
 }

@@ -16,7 +16,7 @@ apps/web      React SPA (the product)
 apps/api      NestJS API (Postgres-backed datarooms, folders, PDF files)
 packages/     contracts | db | domain | ui | config
 tooling/      typescript-config | lint-config | format-config | tailwind-config
-tests/e2e     (placeholder) Playwright suite
+tests/e2e     root e2e workspace (@repo/e2e)
 docs/         architecture.md | monorepo.md
 ```
 
@@ -30,16 +30,22 @@ bun install
 ```
 
 The API needs a PostgreSQL to point `DATABASE_URL` at (any local install or
-`docker compose up -d` if you prefer docker). Startup applies committed Drizzle
-migrations automatically.
+`docker compose up -d` if you prefer docker). Apply committed Drizzle migrations
+before starting the API:
+
+```bash
+bun run --cwd packages/db db:migrate
+```
 
 ## Development
 
 ```bash
 bun run dev        # web on :5173 (+ /api proxy), api on :3000
-bun run test       # bun test via turbo (domain, service, filter, HTTP e2e)
+bun run dev:real   # same dev stack with VITE_ENABLE_MOCKS=false
+bun run test       # bun test via turbo (domain, service, filter, HTTP integration)
+bun run test:e2e   # Playwright smoke against web + real API + Postgres
 bun run --cwd packages/db db:generate
-bun run --cwd packages/db db:migrate
+bun run --cwd packages/db db:migrate  # apply committed DB migrations
 bun run build      # full ordered build via turbo
 bun run typecheck
 bun run lint
@@ -49,6 +55,18 @@ bun run format
 The API uses `DATABASE_URL` when set; otherwise it falls back to the local dev
 database `postgres://dataroom:dataroom@localhost:5432/dataroom` (dev only — in
 production `DATABASE_URL` is required). See `.env.example` for all knobs.
+
+For real-mode E2E, use a dedicated database:
+
+```bash
+docker compose up -d
+bunx playwright install chromium
+bun run test:e2e
+```
+
+On a fresh docker volume, compose also creates `dataroom_e2e` for Playwright.
+If you already had the Postgres volume before this script existed, create that
+database manually or recreate the local volume, then rerun `bun run test:e2e`.
 
 ## Backend decisions
 
@@ -65,15 +83,21 @@ production `DATABASE_URL` is required). See `.env.example` for all knobs.
   helmet, a CORS origin allowlist (`CORS_ORIGIN`) and a per-IP rate limit
   (100 req/min) guard the HTTP surface.
 - Tests run with `bun test`: pure domain rules, the service over in-memory fakes,
-  the exception filter, and an HTTP e2e suite that boots the real Nest app
+  the exception filter, and an HTTP integration suite that boots the real Nest app
   (controllers, validation, multipart) with only the database/storage swapped for
   fakes - no running PostgreSQL required.
+- Cross-app Playwright smoke tests live in `tests/e2e` and run only through
+  `bun run test:e2e`; they are intentionally not part of the fast default
+  `bun run test` loop.
+- `GET /datarooms/:id/nodes?search=<term>` performs case-insensitive
+  name-based filtering for files and folders. The browser keeps the term in
+  `?q=` and renders flat results with their folder location.
 - Production-scale large uploads should move to presigned URLs straight into the
   bucket, plus auth-bound ownership (`owner_id`) when Clerk is enabled.
 
 ## Deploy (Railway)
 
 Everything runs on Railway: web, api, PostgreSQL and an S3-compatible bucket.
-For the api service set `DATABASE_URL`, `CORS_ORIGIN` (the web origin),
-`STORAGE_DRIVER=s3` and the `S3_*` variables from the bucket service; `PORT` is
-injected by Railway automatically.
+The repo-side configuration and required service settings are documented in
+`docs/deploy.md`. A live URL is still pending because this environment has no
+Railway CLI/authenticated project context.

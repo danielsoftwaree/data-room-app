@@ -1,6 +1,5 @@
 import { defineConfig } from 'drizzle-kit';
-
-const DEFAULT_DATABASE_URL = 'postgres://dataroom:dataroom@localhost:5432/dataroom';
+import { DEFAULT_DATABASE_URL } from './src/constants';
 
 export default defineConfig({
   dialect: 'postgresql',

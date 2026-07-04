@@ -41,12 +41,35 @@ function extractMessage(body: unknown): string | undefined {
   return undefined;
 }
 
+type AuthTokenGetter = () => Promise<string | null> | string | null;
+
+let authTokenGetter: AuthTokenGetter | null = null;
+
+/**
+ * Registers a session-token getter (e.g. Clerk's `getToken`). When set, every
+ * request carries `Authorization: Bearer <token>`. Called once from the app's
+ * auth provider so generated hooks stay untouched.
+ */
+export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
+  authTokenGetter = getter;
+}
+
 export const customFetch = async <T>(url: string, options: RequestInit): Promise<T> => {
-  const response = await fetch(withApiBaseUrl(url), withDemoUserHeader(options));
+  const response = await fetch(withApiBaseUrl(url), await withAuthHeaders(options));
   const body = await readResponseBody(response);
   if (!response.ok) throw new ApiError(response.status, body);
   return { data: body, status: response.status, headers: response.headers } as T;
 };
+
+async function withAuthHeaders(options: RequestInit): Promise<RequestInit> {
+  const withUser = withDemoUserHeader(options);
+  if (!authTokenGetter) return withUser;
+  const token = await authTokenGetter();
+  if (!token) return withUser;
+  const headers = new Headers(withUser.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return { ...withUser, headers };
+}
 
 function withDemoUserHeader(options: RequestInit): RequestInit {
   const userId = getDemoUserId();

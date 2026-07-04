@@ -1,26 +1,18 @@
-import { useSyncExternalStore } from 'react';
-
 /**
- * Minimal theme store. index.html applies the initial `.dark` class before
- * first paint; this module toggles it afterwards and lets React subscribe.
+ * @deprecated Theme now lives in the unified UI store (`./ui-store`).
+ * This thin adapter keeps the old functional API working for any remaining
+ * imports; prefer `useUiStore` directly in new code.
  */
-const listeners = new Set<() => void>();
+import { useUiStore } from './ui-store';
 
 export function isDarkTheme(): boolean {
-  return document.documentElement.classList.contains('dark');
+  return useUiStore.getState().theme === 'dark';
 }
 
 export function setDarkTheme(dark: boolean): void {
-  document.documentElement.classList.toggle('dark', dark);
-  localStorage.setItem('theme', dark ? 'dark' : 'light');
-  for (const listener of listeners) listener();
+  useUiStore.getState().setTheme(dark ? 'dark' : 'light');
 }
 
 export function useDarkTheme(): boolean {
-  return useSyncExternalStore(subscribe, isDarkTheme);
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  return useUiStore((state) => state.theme === 'dark');
 }

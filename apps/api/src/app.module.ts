@@ -5,6 +5,7 @@ import { DatabaseModule } from './config/database/database.module';
 import { EnvModule } from './config/env';
 import { DataroomsModule } from './modules/datarooms/datarooms.module';
 import { HealthModule } from './modules/health/health.module';
+import { ClerkAuthGuard } from './shared/auth/clerk-auth.guard';
 
 @Module({
   imports: [
@@ -16,6 +17,9 @@ import { HealthModule } from './modules/health/health.module';
     HealthModule,
     DataroomsModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClerkAuthGuard },
+  ],
 })
 export class AppModule {}

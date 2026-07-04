@@ -14,13 +14,17 @@
     <script>
       // Apply the saved theme before first paint (no flash of the wrong theme).
       // Default is light: only go dark when the user has explicitly chosen it.
+      // Source of truth is the unified UI store (localStorage `dataroom-ui`);
+      // falls back to the legacy `theme` key on the first load after migration.
       (function () {
         try {
-          if (localStorage.getItem('theme') === 'dark') {
+          var raw = localStorage.getItem('dataroom-ui');
+          var theme = raw ? JSON.parse(raw).state.theme : localStorage.getItem('theme');
+          if (theme === 'dark') {
             document.documentElement.classList.add('dark');
           }
         } catch (error) {
-          /* storage unavailable: stay light */
+          /* storage unavailable or malformed: stay light */
         }
       })();
     </script>

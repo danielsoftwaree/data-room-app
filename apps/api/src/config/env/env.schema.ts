@@ -27,6 +27,7 @@ const envSchemaBase = z.object({
   S3_BUCKET: optionalTrimmedString,
   S3_ACCESS_KEY_ID: optionalTrimmedString,
   S3_SECRET_ACCESS_KEY: optionalTrimmedString,
+  CLERK_SECRET_KEY: optionalTrimmedString,
 });
 
 export const envSchema = envSchemaBase
@@ -47,6 +48,14 @@ export const envSchema = envSchemaBase
           message: 'CORS_ORIGIN must be set in production',
         });
       }
+    }
+
+    if (env.NODE_ENV === 'production' && !env.CLERK_SECRET_KEY) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CLERK_SECRET_KEY'],
+        message: 'CLERK_SECRET_KEY must be set in production',
+      });
     }
 
     if (env.STORAGE_DRIVER === 's3') {

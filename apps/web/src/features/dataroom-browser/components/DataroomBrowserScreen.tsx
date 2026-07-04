@@ -66,6 +66,7 @@ import { useFavorites } from '../../../shared/favorites';
 import { formatCount, formatDate, formatFileSize } from '../../../shared/format';
 import { childrenOf, findNode, folderPath } from '../../../shared/node-tree';
 import { toDataroomNode } from '../../../shared/api-adapters';
+import { useUiStore } from '../../../shared/ui-store';
 import { useNodeMutations } from '../hooks';
 import { DataroomBreadcrumbs } from './Breadcrumbs';
 import { DetailPanel } from './DetailPanel';
@@ -137,9 +138,8 @@ function DocumentsWorkspace({
   const [filter, setFilter] = useState<FilterMode>('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [view, setView] = useState<ViewMode>(() =>
-    localStorage.getItem('dataroom-view') === 'grid' ? 'grid' : 'list',
-  );
+  const view = useUiStore((state) => state.view);
+  const setViewMode = useUiStore((state) => state.setView);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
@@ -186,11 +186,6 @@ function DocumentsWorkspace({
     dataroom.isError || nodesQuery.isError || (isSearchActive && searchNodesQuery.isError);
   const browserError =
     dataroom.error ?? nodesQuery.error ?? (isSearchActive ? searchNodesQuery.error : null);
-
-  function setViewMode(nextView: ViewMode): void {
-    setView(nextView);
-    localStorage.setItem('dataroom-view', nextView);
-  }
 
   // Single click previews the item (opens the detail panel); double click opens it.
   // Selection (row highlight, bulk actions) is driven only by the checkbox.

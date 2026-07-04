@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { useClerk, useUser } from '@clerk/clerk-react';
 import { useGetMe, useListUsers } from '@repo/api-client';
 import type { UserDto } from '@repo/api-client';
 import { Avatar, AvatarFallback } from '@repo/ui/components/avatar';
@@ -21,6 +22,8 @@ import { ThemeToggle } from './ThemeToggle';
  */
 export function UserMenu({ compact = false }: Readonly<{ compact?: boolean }>) {
   const queryClient = useQueryClient();
+  const { signOut } = useClerk();
+  const { user: clerkUser } = useUser();
   const me = useGetMe();
   const users = useListUsers();
   const current = me.data?.data;
@@ -28,6 +31,12 @@ export function UserMenu({ compact = false }: Readonly<{ compact?: boolean }>) {
   function switchUser(user: UserDto): void {
     localStorage.setItem('demo-user-id', user.id);
     void queryClient.invalidateQueries();
+  }
+
+  async function handleSignOut(): Promise<void> {
+    localStorage.removeItem('demo-user-id');
+    queryClient.clear();
+    await signOut();
   }
 
   return (
@@ -42,10 +51,10 @@ export function UserMenu({ compact = false }: Readonly<{ compact?: boolean }>) {
             <UserAvatar user={current} />
             <span className="min-w-0 flex-1 text-left">
               <span className="block truncate text-sm font-semibold">
-                {current?.name ?? 'Demo user'}
+                {clerkUser?.fullName ?? current?.name ?? 'Demo user'}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {current?.email ?? 'Switch identity'}
+                {clerkUser?.primaryEmailAddress?.emailAddress ?? current?.email ?? 'Switch identity'}
               </span>
             </span>
           </Button>
@@ -70,9 +79,9 @@ export function UserMenu({ compact = false }: Readonly<{ compact?: boolean }>) {
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled
             aria-label="Log out"
-            title="Sign out is unavailable in demo mode"
+            title="Sign out"
+            onClick={() => void handleSignOut()}
           >
             <LogOutIcon className="size-4" />
           </Button>

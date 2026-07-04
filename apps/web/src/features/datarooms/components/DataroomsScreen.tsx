@@ -13,7 +13,7 @@ import {
  * api (Nest + swagger) -> openapi.json -> orval -> TanStack Query hooks.
  * Will be replaced by the real Data Room UX.
  */
-export function App() {
+export function DataroomsScreen() {
   const [name, setName] = useState('');
   const queryClient = useQueryClient();
   const health = useGetHealth();

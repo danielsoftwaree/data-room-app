@@ -5,6 +5,7 @@ import { DatabaseModule } from './config/database/database.module';
 import { EnvModule } from './config/env';
 import { DataroomsModule } from './modules/datarooms/datarooms.module';
 import { HealthModule } from './modules/health/health.module';
+import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { ClerkAuthGuard } from './shared/auth/clerk-auth.guard';
 
 @Module({
@@ -15,6 +16,7 @@ import { ClerkAuthGuard } from './shared/auth/clerk-auth.guard';
     EnvModule,
     DatabaseModule,
     HealthModule,
+    WorkspaceModule,
     DataroomsModule,
   ],
   providers: [

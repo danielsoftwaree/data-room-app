@@ -372,6 +372,19 @@ export class FakeWorkspaceRepository implements WorkspaceRepository {
     return DEMO_USERS[0];
   }
 
+  async upsertUser(input: {
+    id: string;
+    name: string;
+    email: string;
+    color: string;
+  }): Promise<User> {
+    const user: User = { id: input.id, name: input.name, email: input.email, color: input.color };
+    const index = DEMO_USERS.findIndex((candidate) => candidate.id === input.id);
+    if (index >= 0) DEMO_USERS[index] = user;
+    else DEMO_USERS.push(user);
+    return user;
+  }
+
   async dataroomExists(id: string): Promise<boolean> {
     return this.datarooms.hasDataroom(id);
   }

@@ -42,10 +42,19 @@ export interface FavoriteTarget {
   nodeId: string | null;
 }
 
+export interface UpsertUserInput {
+  id: string;
+  name: string;
+  email: string;
+  color: string;
+}
+
 export interface WorkspaceRepository {
   listUsers(): Promise<User[]>;
   findUser(id: string): Promise<User | undefined>;
   getDefaultUser(): Promise<User>;
+  /** Insert or update a user by id (used to provision the authenticated Clerk user). */
+  upsertUser(input: UpsertUserInput): Promise<User>;
   dataroomExists(id: string): Promise<boolean>;
   nodeBelongsToDataroom(nodeId: string, dataroomId: string): Promise<boolean>;
   listMembers(dataroomId: string): Promise<MemberRecord[]>;

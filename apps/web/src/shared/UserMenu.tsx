@@ -61,15 +61,25 @@ export function UserMenu({ compact = false }: Readonly<{ compact?: boolean }>) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align={compact ? 'end' : 'start'} className="w-64">
         <DropdownMenuLabel>{authEnabled ? 'Account' : 'Demo identity'}</DropdownMenuLabel>
-        {(users.data?.data ?? []).map((user) => (
-          <DropdownMenuItem key={user.id} onSelect={() => switchUser(user)}>
-            <UserAvatar user={user} />
+        {authEnabled ? (
+          <DropdownMenuItem disabled>
+            <UserAvatar user={current} />
             <span className="min-w-0">
-              <span className="block truncate">{user.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+              <span className="block truncate">{current?.name ?? 'You'}</span>
+              <span className="block truncate text-xs text-muted-foreground">{current?.email}</span>
             </span>
           </DropdownMenuItem>
-        ))}
+        ) : (
+          (users.data?.data ?? []).map((user) => (
+            <DropdownMenuItem key={user.id} onSelect={() => switchUser(user)}>
+              <UserAvatar user={user} />
+              <span className="min-w-0">
+                <span className="block truncate">{user.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+              </span>
+            </DropdownMenuItem>
+          ))
+        )}
         <DropdownMenuSeparator />
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-1 text-sm">

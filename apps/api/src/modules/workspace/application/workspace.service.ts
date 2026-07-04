@@ -49,6 +49,26 @@ export class WorkspaceService {
     return this.repository.listUsers();
   }
 
+  userExists(id: string): Promise<boolean> {
+    return this.repository.findUser(id).then((user) => Boolean(user));
+  }
+
+  /**
+   * Provisions (or refreshes) the row for an authenticated user. The auth layer
+   * passes the internal id it derived from the Clerk id, plus whatever profile
+   * it could resolve; we fill sensible fallbacks so the NOT NULL columns hold.
+   */
+  provisionUser(input: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    color: string;
+  }): Promise<User> {
+    const email = input.email?.trim() || `${input.id}@users.noreply`;
+    const name = input.name?.trim() || email.split('@')[0] || 'User';
+    return this.repository.upsertUser({ id: input.id, name, email, color: input.color });
+  }
+
   /** The caller's role in a room, or null when they are not a member. */
   getRole(dataroomId: string, userId: string): Promise<MemberRole | null> {
     return this.repository.findMemberRole(dataroomId, userId);

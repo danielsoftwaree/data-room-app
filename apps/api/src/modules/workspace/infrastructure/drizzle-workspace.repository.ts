@@ -49,6 +49,23 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
     return toUser(row);
   }
 
+  async upsertUser(input: {
+    id: string;
+    name: string;
+    email: string;
+    color: string;
+  }): Promise<User> {
+    const [row] = await this.db
+      .insert(users)
+      .values(input)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: { name: input.name, email: input.email },
+      })
+      .returning();
+    return toUser(row);
+  }
+
   async dataroomExists(id: string): Promise<boolean> {
     const [row] = await this.db
       .select({ id: datarooms.id })

@@ -74,12 +74,12 @@ Dependency direction is one-way (full rules in `docs/monorepo.md`):
 - `packages/contracts` → domain only; `packages/ui` → config at most; `packages/domain` → nothing app-specific.
 - Forbidden: `packages/* → apps/*`, `apps/api ↔ apps/web`, `packages/ui →` web modules or business logic.
 - Business rules (naming, duplicates, cascades, sorting) live in `@repo/domain` as pure functions. Neither the Nest service nor React components re-implement them — they call them.
-- `apps/api` keeps logic in services (`DataroomsService`); controllers stay thin (validate → delegate → return DTO).
+- `apps/api` uses vertical feature modules (`src/modules/<feature>/` owns module, controllers, service, DTOs; `app.module.ts` is only a composition root). Logic lives in services (`DataroomsService`); controllers stay thin (validate → delegate → return DTO).
 - New shared UI primitives go to `packages/ui` only if business-agnostic; otherwise keep them in `apps/web`.
 
 ## Data And API Contracts
 
-- Extend the contract in this order: interface in `packages/contracts` → DTO class in `apps/api/src/datarooms/dto.ts` implementing it (with `@ApiProperty` + class-validator) → controller method → `bun run generate` → consume hooks in web.
+- Extend the contract in this order: interface in `packages/contracts` → DTO class in `apps/api/src/modules/datarooms/dto.ts` implementing it (with `@ApiProperty` + class-validator) → controller method → `bun run generate` → consume hooks in web.
 - Reuse existing request/response/domain types; never redefine contract types inline in web.
 - Validation lives at the boundary: class-validator on DTOs plus domain rules in the service. Client-side checks may duplicate for UX, but the API is the enforcer.
 - Error shape: Nest exceptions (`BadRequestException`, `ConflictException`, `NotFoundException`) with human-readable messages — the web shows them via `getApiErrorMessage`.
@@ -87,6 +87,7 @@ Dependency direction is one-way (full rules in `docs/monorepo.md`):
 
 ## Frontend
 
+- Vertical feature modules: `src/app` (shell/providers) -> `src/features/<name>` (public entry via `index.ts`; see `src/features/README.md`) -> `src/shared`. Cross-feature imports only through a feature's `index.ts`; features never import from `src/app`.
 - Follow existing component structure and state patterns: server state via generated TanStack Query hooks only; local UI state via React state. No extra state managers.
 - Invalidate queries with generated key helpers (`getListDataroomsQueryKey()` etc.) after mutations.
 - Handle all four states wherever data is fetched: loading, error, empty, success. Empty states get a CTA — this repo is judged on UX first.

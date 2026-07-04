@@ -3,5 +3,8 @@
   "build": {
     "builder": "RAILPACK",
     "buildCommand": "bun run build --filter=web"
+  },
+  "deploy": {
+    "restartPolicyType": "ON_FAILURE"
   }
 }

@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getApiErrorMessage,
   getGetDataroomQueryKey,
@@ -9,8 +9,9 @@ import {
   useRenameDataroom as useRenameDataroomBase,
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
+import { createSampleDataroom } from './sample';
 
-/** Invalidate everything that depends on the set/þords of data rooms. */
+/** Invalidate everything that depends on the set of data rooms. */
 function useInvalidateDatarooms() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
@@ -24,7 +25,7 @@ export function useCreateDataroom() {
         toast.success(`Data room "${response.data.name}" created`);
         void invalidate();
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      // No error toast: create runs from NameDialog, which shows the error inline.
     },
   });
 }
@@ -41,8 +42,20 @@ export function useRenameDataroom() {
           queryKey: getGetDataroomQueryKey(response.data.id),
         });
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      // No error toast: rename runs from NameDialog, which shows the error inline.
     },
+  });
+}
+
+export function useCreateSampleDataroom() {
+  const invalidate = useInvalidateDatarooms();
+  return useMutation({
+    mutationFn: createSampleDataroom,
+    onSuccess: (room) => {
+      toast.success(`Sample data room "${room.name}" created`);
+      void invalidate();
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
   });
 }
 

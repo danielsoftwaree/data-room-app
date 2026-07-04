@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { UPLOAD } from '@repo/config';
 import type { DataroomNode, FileNode, FolderNode } from '@repo/domain';
-import { collectSubtreeIds, nextAvailableName, sortNodes } from '@repo/domain';
+import { collectSubtreeIds, nextAvailableName, sortNodes, validateMoveTarget } from '@repo/domain';
 import { isUniqueViolation } from '../../../shared/errors/database';
 import { BLOB_STORAGE } from '../../storage/blob-storage';
 import type { BlobStorage } from '../../storage/blob-storage';
+import { WorkspaceService } from '../../workspace/application/workspace.service';
 import type { DataroomsRepository, ListNodesOptions } from '../domain/datarooms.repository.port';
 import { DATAROOMS_REPOSITORY } from '../domain/datarooms.repository.port';
 import {
@@ -31,6 +32,7 @@ export class NodesService {
   constructor(
     @Inject(DATAROOMS_REPOSITORY) private readonly repository: DataroomsRepository,
     @Inject(BLOB_STORAGE) private readonly storage: BlobStorage,
+    @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
   ) {}
 
   async listNodes(dataroomId: string, options?: ListNodesOptions): Promise<DataroomNode[]> {
@@ -44,12 +46,20 @@ export class NodesService {
     dataroomId: string,
     parentId: string | null,
     rawName: string,
+    userId: string,
   ): Promise<FolderNode> {
     await this.assertDataroomExists(dataroomId);
     await this.assertParentFolder(dataroomId, parentId);
     const name = parseNodeName(rawName);
     try {
-      return await this.repository.createFolder({ dataroomId, parentId, name });
+      const node = await this.repository.createFolder({ dataroomId, parentId, name, userId });
+      await this.workspace.recordActivity({
+        dataroomId,
+        node,
+        action: 'folder.created',
+        actorId: userId,
+      });
+      return node;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`"${name}" already exists in this folder`);
@@ -62,6 +72,7 @@ export class NodesService {
     dataroomId: string,
     parentId: string | null,
     file: PdfUploadInput | undefined,
+    userId: string,
   ): Promise<FileNode> {
     await this.assertDataroomExists(dataroomId);
     await this.assertParentFolder(dataroomId, parentId);
@@ -81,6 +92,7 @@ export class NodesService {
           parentId,
           name,
           size: upload.size,
+          userId,
         });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
@@ -97,18 +109,30 @@ export class NodesService {
         await this.repository.deleteNode(node.id).catch(() => undefined);
         throw error;
       }
+      await this.workspace.recordActivity({
+        dataroomId,
+        node,
+        action: 'file.uploaded',
+        actorId: userId,
+      });
       return node;
     }
 
     throw new NameConflictError(`"${desiredName}" already exists in this folder`);
   }
 
-  async renameNode(nodeId: string, rawName: string): Promise<DataroomNode> {
+  async renameNode(nodeId: string, rawName: string, userId: string): Promise<DataroomNode> {
     await this.getNode(nodeId);
     const name = parseNodeName(rawName);
     try {
-      const updated = await this.repository.renameNode(nodeId, name);
+      const updated = await this.repository.renameNode(nodeId, name, userId);
       if (!updated) throw new NodeNotFoundError();
+      await this.workspace.recordActivity({
+        dataroomId: updated.dataroomId,
+        node: updated,
+        action: 'node.renamed',
+        actorId: userId,
+      });
       return updated;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -118,7 +142,28 @@ export class NodesService {
     }
   }
 
-  async deleteNode(nodeId: string): Promise<{ deletedIds: string[] }> {
+  async moveNode(nodeId: string, parentId: string | null, userId: string): Promise<DataroomNode> {
+    const node = await this.getNode(nodeId);
+    const dataroomNodes = await this.repository.listNodes(node.dataroomId);
+    const validation = validateMoveTarget(dataroomNodes, nodeId, parentId);
+    if (!validation.ok) throw moveValidationError(validation.error);
+
+    const name = nextAvailableName(
+      await this.repository.siblingNames(node.dataroomId, parentId, node.id),
+      node.name,
+    );
+    const updated = await this.repository.moveNode({ id: nodeId, parentId, name, userId });
+    if (!updated) throw new NodeNotFoundError();
+    await this.workspace.recordActivity({
+      dataroomId: updated.dataroomId,
+      node: updated,
+      action: 'node.moved',
+      actorId: userId,
+    });
+    return updated;
+  }
+
+  async deleteNode(nodeId: string, userId: string): Promise<{ deletedIds: string[] }> {
     const node = await this.getNode(nodeId);
     const dataroomNodes = await this.repository.listNodes(node.dataroomId);
     const deletedIds = collectSubtreeIds(dataroomNodes, nodeId);
@@ -126,7 +171,14 @@ export class NodesService {
     const fileIds = dataroomNodes
       .filter((candidate) => candidate.type === 'file' && deletedIdSet.has(candidate.id))
       .map((candidate) => candidate.id);
+    await this.workspace.recordActivity({
+      dataroomId: node.dataroomId,
+      node,
+      action: 'node.deleted',
+      actorId: userId,
+    });
     await this.repository.deleteNode(nodeId);
+    await this.workspace.removeFavoritesForNodes(deletedIds);
     await cleanupBlobs(this.storage, fileIds);
     return { deletedIds };
   }
@@ -165,6 +217,22 @@ export class NodesService {
       throw new InvalidInputError('Parent must be a folder');
     }
   }
+}
+
+function moveValidationError(error: string): Error {
+  if (error === 'node-not-found' || error === 'target-not-found') {
+    return new NodeNotFoundError();
+  }
+  if (error === 'target-cross-dataroom') {
+    return new NodeNotFoundError('Target folder not found');
+  }
+  if (error === 'target-not-folder') {
+    return new InvalidInputError('Move target must be a folder');
+  }
+  if (error === 'target-is-self') {
+    return new InvalidInputError('Cannot move a folder into itself');
+  }
+  return new InvalidInputError('Cannot move a folder into one of its descendants');
 }
 
 function parsePdfUpload(input: PdfUploadInput | undefined): PdfUpload {

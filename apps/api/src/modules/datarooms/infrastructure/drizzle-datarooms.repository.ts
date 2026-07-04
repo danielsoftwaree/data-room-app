@@ -8,6 +8,7 @@ import type {
   CreateFolderInput,
   DataroomsRepository,
   ListNodesOptions,
+  MoveNodeInput,
 } from '../domain/datarooms.repository.port';
 
 type DataroomRow = typeof datarooms.$inferSelect;
@@ -26,8 +27,11 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
     return rows.map(toDataroom);
   }
 
-  async createDataroom(name: string): Promise<Dataroom> {
-    const [row] = await this.db.insert(datarooms).values({ name }).returning();
+  async createDataroom(name: string, userId: string): Promise<Dataroom> {
+    const [row] = await this.db
+      .insert(datarooms)
+      .values({ name, createdBy: userId, updatedBy: userId })
+      .returning();
     return toDataroom(expectRow(row, 'Failed to create data room'));
   }
 
@@ -36,10 +40,10 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
     return row ? toDataroom(row) : undefined;
   }
 
-  async renameDataroom(id: string, name: string): Promise<Dataroom | undefined> {
+  async renameDataroom(id: string, name: string, userId: string): Promise<Dataroom | undefined> {
     const [row] = await this.db
       .update(datarooms)
-      .set({ name, updatedAt: new Date() })
+      .set({ name, updatedAt: new Date(), updatedBy: userId })
       .where(eq(datarooms.id, id))
       .returning();
     return row ? toDataroom(row) : undefined;
@@ -52,7 +56,7 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
   async listNodes(dataroomId: string, options?: ListNodesOptions): Promise<DataroomNode[]> {
     const conditions: SQL[] = [eq(nodes.dataroomId, dataroomId)];
     if (options?.nameContains) {
-      conditions.push(ilike(nodes.name, `%${options.nameContains}%`));
+      conditions.push(ilike(nodes.name, `%${escapeLikePattern(options.nameContains)}%`));
     }
 
     const rows = await this.db
@@ -75,6 +79,8 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
         parentId: input.parentId,
         type: 'folder',
         name: input.name,
+        createdBy: input.userId,
+        updatedBy: input.userId,
       })
       .returning();
     const node = toNode(expectRow(row, 'Failed to create folder'));
@@ -91,6 +97,8 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
         type: 'file',
         name: input.name,
         size: input.size,
+        createdBy: input.userId,
+        updatedBy: input.userId,
       })
       .returning();
     const node = toNode(expectRow(row, 'Failed to create file node'));
@@ -98,11 +106,25 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
     return node;
   }
 
-  async renameNode(id: string, name: string): Promise<DataroomNode | undefined> {
+  async renameNode(id: string, name: string, userId: string): Promise<DataroomNode | undefined> {
     const [row] = await this.db
       .update(nodes)
-      .set({ name, updatedAt: new Date() })
+      .set({ name, updatedAt: new Date(), updatedBy: userId })
       .where(eq(nodes.id, id))
+      .returning();
+    return row ? toNode(row) : undefined;
+  }
+
+  async moveNode(input: MoveNodeInput): Promise<DataroomNode | undefined> {
+    const [row] = await this.db
+      .update(nodes)
+      .set({
+        parentId: input.parentId,
+        name: input.name,
+        updatedAt: new Date(),
+        updatedBy: input.userId,
+      })
+      .where(eq(nodes.id, input.id))
       .returning();
     return row ? toNode(row) : undefined;
   }
@@ -136,6 +158,8 @@ function toDataroom(row: DataroomRow): Dataroom {
     name: row.name,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
+    createdBy: row.createdBy,
+    updatedBy: row.updatedBy,
   };
 }
 
@@ -147,6 +171,8 @@ function toNode(row: NodeRow): DataroomNode {
     name: row.name,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
+    createdBy: row.createdBy,
+    updatedBy: row.updatedBy,
   };
 
   if (row.type === 'folder') return { ...base, type: 'folder' };
@@ -157,4 +183,9 @@ function toNode(row: NodeRow): DataroomNode {
 function expectRow<T>(row: T | undefined, message: string): T {
   if (!row) throw new Error(message);
   return row;
+}
+
+/** Escape LIKE wildcards so a search for "100%" or "_draft" matches literally. */
+function escapeLikePattern(term: string): string {
+  return term.replace(/[\\%_]/g, (char) => `\\${char}`);
 }

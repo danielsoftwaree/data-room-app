@@ -2,6 +2,9 @@
 @import 'tw-animate-css';
 @import '@repo/tailwind-config/theme.css';
 
+/* Class-based dark mode: `dark:` utilities react to `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Scan the ui package sources; the consuming app's sources are auto-detected. */
 @source '../**/*.{ts,tsx}';
 
@@ -10,6 +13,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
 }

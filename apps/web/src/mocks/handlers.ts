@@ -9,18 +9,15 @@ import type { HttpResponseResolver, PathParams } from 'msw';
 import * as db from './db';
 import { MockError } from './db';
 
-/** Nest-shaped error body so the generated mutator's getApiErrorMessage reads `.message`. */
+/** ApiErrorResponse-shaped body ({ error: { code, message } }) — same contract as the real API. */
 function errorBody(status: number, message: string) {
-  const names: Record<number, string> = {
-    400: 'Bad Request',
-    404: 'Not Found',
-    409: 'Conflict',
-    413: 'Payload Too Large',
+  const codes: Record<number, string> = {
+    400: 'BAD_REQUEST',
+    404: 'NOT_FOUND',
+    409: 'CONFLICT',
+    413: 'PAYLOAD_TOO_LARGE',
   };
-  return HttpResponse.json(
-    { statusCode: status, message, error: names[status] ?? 'Error' },
-    { status },
-  );
+  return HttpResponse.json({ error: { code: codes[status] ?? 'ERROR', message } }, { status });
 }
 
 /** Wraps a handler so thrown MockErrors become proper HTTP error responses. */
@@ -41,8 +38,18 @@ function guard<Params extends PathParams>(
 // Simulated latency so loading/skeleton states are visible in dev.
 const delay = () => new Promise((resolve) => setTimeout(resolve, 250));
 
+function currentUserId(request: Request): string {
+  return db.resolveUserId(request.headers.get('x-user-id'));
+}
+
 export const handlers = [
   http.get('/api/health', () => HttpResponse.json({ status: 'ok' })),
+
+  http.get('/api/me', ({ request }) =>
+    HttpResponse.json(db.getMe(request.headers.get('x-user-id'))),
+  ),
+
+  http.get('/api/users', () => HttpResponse.json(db.listUsers())),
 
   http.get(
     '/api/datarooms',
@@ -56,7 +63,9 @@ export const handlers = [
     '/api/datarooms',
     guard(async ({ request }) => {
       const body = (await request.json()) as { name: string };
-      return HttpResponse.json(db.createDataroom(body?.name), { status: 201 });
+      return HttpResponse.json(db.createDataroom(body?.name, currentUserId(request)), {
+        status: 201,
+      });
     }),
   ),
 
@@ -69,7 +78,9 @@ export const handlers = [
     '/api/datarooms/:id',
     guard(async ({ params, request }) => {
       const body = (await request.json()) as { name: string };
-      return HttpResponse.json(db.renameDataroom(params.id as string, body?.name));
+      return HttpResponse.json(
+        db.renameDataroom(params.id as string, body?.name, currentUserId(request)),
+      );
     }),
   ),
 
@@ -92,7 +103,12 @@ export const handlers = [
     guard(async ({ params, request }) => {
       const body = (await request.json()) as { parentId: string | null; name: string };
       return HttpResponse.json(
-        db.createFolder(params.id as string, body?.parentId ?? null, body?.name),
+        db.createFolder(
+          params.id as string,
+          body?.parentId ?? null,
+          body?.name,
+          currentUserId(request),
+        ),
         { status: 201 },
       );
     }),
@@ -108,12 +124,17 @@ export const handlers = [
       if (!(file instanceof File)) throw new MockError(400, 'A PDF file is required');
       const bytes = new Uint8Array(await file.arrayBuffer());
       return HttpResponse.json(
-        db.createFile(params.id as string, parentId, {
-          originalName: file.name,
-          size: file.size,
-          contentType: file.type,
-          bytes,
-        }),
+        db.createFile(
+          params.id as string,
+          parentId,
+          {
+            originalName: file.name,
+            size: file.size,
+            contentType: file.type,
+            bytes,
+          },
+          currentUserId(request),
+        ),
         { status: 201 },
       );
     }),
@@ -123,14 +144,94 @@ export const handlers = [
     '/api/nodes/:id',
     guard(async ({ params, request }) => {
       const body = (await request.json()) as { name: string };
-      return HttpResponse.json(db.renameNode(params.id as string, body?.name));
+      return HttpResponse.json(
+        db.renameNode(params.id as string, body?.name, currentUserId(request)),
+      );
+    }),
+  ),
+
+  http.post(
+    '/api/nodes/:id/move',
+    guard(async ({ params, request }) => {
+      const body = (await request.json()) as { parentId: string | null };
+      return HttpResponse.json(
+        db.moveNode(params.id as string, body?.parentId ?? null, currentUserId(request)),
+      );
     }),
   ),
 
   http.delete(
     '/api/nodes/:id',
-    guard(async ({ params }) => HttpResponse.json(db.deleteNode(params.id as string))),
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.deleteNode(params.id as string, currentUserId(request))),
+    ),
   ),
+
+  http.get(
+    '/api/datarooms/:id/members',
+    guard(async ({ params }) => HttpResponse.json(db.listMembers(params.id as string))),
+  ),
+
+  http.post(
+    '/api/datarooms/:id/members',
+    guard(async ({ params, request }) => {
+      const body = (await request.json()) as {
+        userId: string;
+        role: 'owner' | 'editor' | 'viewer';
+      };
+      return HttpResponse.json(
+        db.addMember(params.id as string, body.userId, body.role, currentUserId(request)),
+        { status: 201 },
+      );
+    }),
+  ),
+
+  http.delete(
+    '/api/datarooms/:id/members/:userId',
+    guard(async ({ params, request }) => {
+      db.removeMember(params.id as string, params.userId as string, currentUserId(request));
+      return HttpResponse.json({ ok: true });
+    }),
+  ),
+
+  http.get(
+    '/api/favorites',
+    guard(async ({ request }) => HttpResponse.json(db.listFavorites(currentUserId(request)))),
+  ),
+
+  http.put(
+    '/api/favorites',
+    guard(async ({ request }) => {
+      const body = (await request.json()) as { dataroomId: string; nodeId?: string | null };
+      return HttpResponse.json(
+        db.addFavorite(currentUserId(request), body.dataroomId, body.nodeId ?? null),
+      );
+    }),
+  ),
+
+  http.delete(
+    '/api/favorites',
+    guard(async ({ request }) => {
+      const body = (await request.json()) as { dataroomId: string; nodeId?: string | null };
+      db.removeFavorite(currentUserId(request), body.dataroomId, body.nodeId ?? null);
+      return HttpResponse.json({ ok: true });
+    }),
+  ),
+
+  http.get(
+    '/api/datarooms/:id/activity',
+    guard(async ({ params, request }) => {
+      const search = new URL(request.url).searchParams;
+      return HttpResponse.json(
+        db.listActivity(params.id as string, {
+          nodeId: search.get('nodeId'),
+          limit: Number(search.get('limit') || 25),
+        }),
+      );
+    }),
+  ),
+
+  http.get('/api/storage', () => HttpResponse.json(db.getStorageUsage())),
 
   http.get(
     '/api/nodes/:id/content',

@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Data Room</title>
+    <!-- App type: Hanken Grotesk (display) + Plus Jakarta Sans (body/UI). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Apply the saved/system theme before first paint (no flash of the wrong theme).
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          if (
+            stored === 'dark' ||
+            (!stored && matchMedia('(prefers-color-scheme: dark)').matches)
+          ) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (error) {
+          /* storage unavailable: stay light */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

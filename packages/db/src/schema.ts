@@ -5,6 +5,7 @@ import {
   customType,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -18,6 +19,14 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   },
 });
 
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  color: text('color').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const datarooms = pgTable(
   'datarooms',
   {
@@ -25,6 +34,8 @@ export const datarooms = pgTable(
     name: text('name').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [uniqueIndex('datarooms_name_lower_unique').on(sql`lower(${table.name})`)],
 );
@@ -44,6 +55,8 @@ export const nodes = pgTable(
     size: bigint('size', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [
     check('nodes_type_check', sql`${table.type} IN ('folder', 'file')`),
@@ -69,3 +82,86 @@ export const fileBlobs = pgTable('file_blobs', {
   content: bytea('content').notNull(),
   contentType: text('content_type').notNull(),
 });
+
+export const dataroomMembers = pgTable(
+  'dataroom_members',
+  {
+    dataroomId: uuid('dataroom_id')
+      .notNull()
+      .references(() => datarooms.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['owner', 'editor', 'viewer'] }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.dataroomId, table.userId] }),
+    check('dataroom_members_role_check', sql`${table.role} IN ('owner', 'editor', 'viewer')`),
+    index('dataroom_members_user_id_idx').on(table.userId),
+  ],
+);
+
+export const favorites = pgTable(
+  'favorites',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dataroomId: uuid('dataroom_id')
+      .notNull()
+      .references(() => datarooms.id, { onDelete: 'cascade' }),
+    nodeId: uuid('node_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('favorites_room_unique')
+      .on(table.userId, table.dataroomId)
+      .where(sql`${table.nodeId} IS NULL`),
+    uniqueIndex('favorites_node_unique')
+      .on(table.userId, table.dataroomId, table.nodeId)
+      .where(sql`${table.nodeId} IS NOT NULL`),
+    index('favorites_user_id_idx').on(table.userId),
+  ],
+);
+
+export const activity = pgTable(
+  'activity',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dataroomId: uuid('dataroom_id')
+      .notNull()
+      .references(() => datarooms.id, { onDelete: 'cascade' }),
+    nodeId: uuid('node_id'),
+    nodeName: text('node_name'),
+    nodeType: text('node_type', { enum: ['folder', 'file'] }),
+    action: text('action', {
+      enum: [
+        'dataroom.created',
+        'folder.created',
+        'file.uploaded',
+        'node.renamed',
+        'node.moved',
+        'node.deleted',
+        'member.added',
+        'member.removed',
+      ],
+    }).notNull(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'activity_node_type_check',
+      sql`${table.nodeType} IS NULL OR ${table.nodeType} IN ('folder', 'file')`,
+    ),
+    check(
+      'activity_action_check',
+      sql`${table.action} IN ('dataroom.created', 'folder.created', 'file.uploaded', 'node.renamed', 'node.moved', 'node.deleted', 'member.added', 'member.removed')`,
+    ),
+    index('activity_dataroom_created_at_idx').on(table.dataroomId, table.createdAt),
+    index('activity_node_id_idx').on(table.nodeId),
+  ],
+);

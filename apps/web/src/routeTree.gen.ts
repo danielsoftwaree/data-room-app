@@ -10,78 +10,93 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as DataroomsDataroomIdIndexRouteImport } from './routes/datarooms.$dataroomId.index'
-import { Route as DataroomsDataroomIdFoldersFolderIdRouteImport } from './routes/datarooms.$dataroomId.folders.$folderId'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppDataroomsDataroomIdRouteImport } from './routes/_app.datarooms.$dataroomId'
+import { Route as AppDataroomsDataroomIdIndexRouteImport } from './routes/_app.datarooms.$dataroomId.index'
+import { Route as AppDataroomsDataroomIdFoldersFolderIdRouteImport } from './routes/_app.datarooms.$dataroomId.folders.$folderId'
 
 const DesignSystemRoute = DesignSystemRouteImport.update({
   id: '/design-system',
   path: '/design-system',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DataroomsDataroomIdIndexRoute =
-  DataroomsDataroomIdIndexRouteImport.update({
-    id: '/datarooms/$dataroomId/',
-    path: '/datarooms/$dataroomId/',
-    getParentRoute: () => rootRouteImport,
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDataroomsDataroomIdRoute = AppDataroomsDataroomIdRouteImport.update({
+  id: '/datarooms/$dataroomId',
+  path: '/datarooms/$dataroomId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDataroomsDataroomIdIndexRoute =
+  AppDataroomsDataroomIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppDataroomsDataroomIdRoute,
   } as any)
-const DataroomsDataroomIdFoldersFolderIdRoute =
-  DataroomsDataroomIdFoldersFolderIdRouteImport.update({
-    id: '/datarooms/$dataroomId/folders/$folderId',
-    path: '/datarooms/$dataroomId/folders/$folderId',
-    getParentRoute: () => rootRouteImport,
+const AppDataroomsDataroomIdFoldersFolderIdRoute =
+  AppDataroomsDataroomIdFoldersFolderIdRouteImport.update({
+    id: '/folders/$folderId',
+    path: '/folders/$folderId',
+    getParentRoute: () => AppDataroomsDataroomIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/datarooms/$dataroomId/': typeof DataroomsDataroomIdIndexRoute
-  '/datarooms/$dataroomId/folders/$folderId': typeof DataroomsDataroomIdFoldersFolderIdRoute
+  '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
+  '/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
+  '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/datarooms/$dataroomId': typeof DataroomsDataroomIdIndexRoute
-  '/datarooms/$dataroomId/folders/$folderId': typeof DataroomsDataroomIdFoldersFolderIdRoute
+  '/': typeof AppIndexRoute
+  '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdIndexRoute
+  '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
-  '/datarooms/$dataroomId/': typeof DataroomsDataroomIdIndexRoute
-  '/datarooms/$dataroomId/folders/$folderId': typeof DataroomsDataroomIdFoldersFolderIdRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
+  '/_app/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
+  '/_app/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/design-system'
+    | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/'
     | '/datarooms/$dataroomId/folders/$folderId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/design-system'
+    | '/'
     | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/folders/$folderId'
   id:
     | '__root__'
-    | '/'
+    | '/_app'
     | '/design-system'
-    | '/datarooms/$dataroomId/'
-    | '/datarooms/$dataroomId/folders/$folderId'
+    | '/_app/'
+    | '/_app/datarooms/$dataroomId'
+    | '/_app/datarooms/$dataroomId/'
+    | '/_app/datarooms/$dataroomId/folders/$folderId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   DesignSystemRoute: typeof DesignSystemRoute
-  DataroomsDataroomIdIndexRoute: typeof DataroomsDataroomIdIndexRoute
-  DataroomsDataroomIdFoldersFolderIdRoute: typeof DataroomsDataroomIdFoldersFolderIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -93,36 +108,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DesignSystemRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/datarooms/$dataroomId/': {
-      id: '/datarooms/$dataroomId/'
+    '/_app/datarooms/$dataroomId': {
+      id: '/_app/datarooms/$dataroomId'
       path: '/datarooms/$dataroomId'
-      fullPath: '/datarooms/$dataroomId/'
-      preLoaderRoute: typeof DataroomsDataroomIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/datarooms/$dataroomId'
+      preLoaderRoute: typeof AppDataroomsDataroomIdRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/datarooms/$dataroomId/folders/$folderId': {
-      id: '/datarooms/$dataroomId/folders/$folderId'
-      path: '/datarooms/$dataroomId/folders/$folderId'
+    '/_app/datarooms/$dataroomId/': {
+      id: '/_app/datarooms/$dataroomId/'
+      path: '/'
+      fullPath: '/datarooms/$dataroomId/'
+      preLoaderRoute: typeof AppDataroomsDataroomIdIndexRouteImport
+      parentRoute: typeof AppDataroomsDataroomIdRoute
+    }
+    '/_app/datarooms/$dataroomId/folders/$folderId': {
+      id: '/_app/datarooms/$dataroomId/folders/$folderId'
+      path: '/folders/$folderId'
       fullPath: '/datarooms/$dataroomId/folders/$folderId'
-      preLoaderRoute: typeof DataroomsDataroomIdFoldersFolderIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppDataroomsDataroomIdFoldersFolderIdRouteImport
+      parentRoute: typeof AppDataroomsDataroomIdRoute
     }
   }
 }
 
+interface AppDataroomsDataroomIdRouteChildren {
+  AppDataroomsDataroomIdIndexRoute: typeof AppDataroomsDataroomIdIndexRoute
+  AppDataroomsDataroomIdFoldersFolderIdRoute: typeof AppDataroomsDataroomIdFoldersFolderIdRoute
+}
+
+const AppDataroomsDataroomIdRouteChildren: AppDataroomsDataroomIdRouteChildren =
+  {
+    AppDataroomsDataroomIdIndexRoute: AppDataroomsDataroomIdIndexRoute,
+    AppDataroomsDataroomIdFoldersFolderIdRoute:
+      AppDataroomsDataroomIdFoldersFolderIdRoute,
+  }
+
+const AppDataroomsDataroomIdRouteWithChildren =
+  AppDataroomsDataroomIdRoute._addFileChildren(
+    AppDataroomsDataroomIdRouteChildren,
+  )
+
+interface AppRouteChildren {
+  AppIndexRoute: typeof AppIndexRoute
+  AppDataroomsDataroomIdRoute: typeof AppDataroomsDataroomIdRouteWithChildren
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppIndexRoute: AppIndexRoute,
+  AppDataroomsDataroomIdRoute: AppDataroomsDataroomIdRouteWithChildren,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   DesignSystemRoute: DesignSystemRoute,
-  DataroomsDataroomIdIndexRoute: DataroomsDataroomIdIndexRoute,
-  DataroomsDataroomIdFoldersFolderIdRoute:
-    DataroomsDataroomIdFoldersFolderIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

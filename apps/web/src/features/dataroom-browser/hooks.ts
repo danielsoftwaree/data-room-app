@@ -6,6 +6,7 @@ import {
   useCreateFile as useCreateFileBase,
   useCreateFolder as useCreateFolderBase,
   useDeleteNode as useDeleteNodeBase,
+  useMoveNode as useMoveNodeBase,
   useRenameNode as useRenameNodeBase,
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
@@ -20,6 +21,7 @@ export function useNodeMutations(dataroomId: string) {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: getListNodesQueryKey(dataroomId) });
     void queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
+    void queryClient.invalidateQueries();
   };
 
   const createFolder = useCreateFolderBase({
@@ -28,7 +30,7 @@ export function useNodeMutations(dataroomId: string) {
         toast.success('Folder created');
         invalidate();
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      // No error toast: create runs from NameDialog, which shows the error inline.
     },
   });
 
@@ -42,7 +44,7 @@ export function useNodeMutations(dataroomId: string) {
         toast.success('Renamed');
         invalidate();
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      // No error toast: rename runs from NameDialog, which shows the error inline.
     },
   });
 
@@ -58,5 +60,15 @@ export function useNodeMutations(dataroomId: string) {
     },
   });
 
-  return { createFolder, createFile, renameNode, deleteNode };
+  const moveNode = useMoveNodeBase({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Moved');
+        invalidate();
+      },
+      onError: (error) => toast.error(getApiErrorMessage(error)),
+    },
+  });
+
+  return { createFolder, createFile, renameNode, deleteNode, moveNode };
 }

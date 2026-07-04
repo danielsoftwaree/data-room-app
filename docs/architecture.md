@@ -122,8 +122,9 @@ them, never re-implement fetching.
    needs no database.
 8. **Dev mock API in the browser** - MSW + IndexedDB give the web app a full
    offline dev mode; production builds never ship the mock code.
-9. **Auth (Clerk) is scaffolded, not implemented** - dependencies and env
-   names are reserved, zero auth code in app source. See `docs/auth-clerk.md`.
+9. **Auth is out of scope for the MVP** - no auth code, and Clerk dependencies
+   are intentionally not installed. `docs/auth-clerk.md` is a forward-looking
+   sketch of how it would be added (including an `owner_id` seam).
 10. **DDD-light inside modules when complexity warrants it** - module-local
     `domain/application/infrastructure/http` folders are used for `datarooms`
     because it owns tree operations, file upload policy, persistence ports and

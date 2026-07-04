@@ -9,9 +9,15 @@ import { DATAROOMS_REPOSITORY } from '../../src/modules/datarooms/domain/dataroo
 import { DataroomsModule } from '../../src/modules/datarooms/datarooms.module';
 import { HealthModule } from '../../src/modules/health/health.module';
 import { BLOB_STORAGE } from '../../src/modules/storage/blob-storage';
+import { WORKSPACE_REPOSITORY } from '../../src/modules/workspace/domain/workspace.repository.port';
 import { ApiExceptionFilter } from '../../src/shared/filters/api-exception.filter';
 import { createPdfBuffer } from '../../src/shared/test-utils';
-import { FakeBlobStorage, FakeDataroomsRepository } from './fakes';
+import {
+  DEMO_USERS,
+  FakeBlobStorage,
+  FakeDataroomsRepository,
+  FakeWorkspaceRepository,
+} from './fakes';
 
 /** Satisfies the DRIZZLE token that StorageModule/Repository inject; never touched thanks to the overrides. */
 @Global()
@@ -28,11 +34,14 @@ let app: INestApplication;
 let baseUrl: string;
 
 beforeAll(async () => {
+  const dataroomsRepository = new FakeDataroomsRepository();
   const moduleRef = await Test.createTestingModule({
     imports: [FakeDatabaseModule, HealthModule, DataroomsModule],
   })
     .overrideProvider(DATAROOMS_REPOSITORY)
-    .useValue(new FakeDataroomsRepository())
+    .useValue(dataroomsRepository)
+    .overrideProvider(WORKSPACE_REPOSITORY)
+    .useValue(new FakeWorkspaceRepository(dataroomsRepository))
     .overrideProvider(BLOB_STORAGE)
     .useValue(new FakeBlobStorage())
     .compile();
@@ -53,10 +62,15 @@ function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${baseUrl}/api${path}`, init);
 }
 
-function json(path: string, method: string, body: unknown): Promise<Response> {
+function json(
+  path: string,
+  method: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<Response> {
   return api(path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -123,6 +137,92 @@ describe('datarooms API', () => {
   test('400 when the name has forbidden characters', async () => {
     const response = await json('/datarooms', 'POST', { name: 'bad/name' });
     expect(response.status).toBe(400);
+  });
+});
+
+describe('workspace API', () => {
+  test('resolves the current demo user and falls back for an unknown header', async () => {
+    const response = await api('/me', { headers: { 'x-user-id': 'missing-user' } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: DEMO_USERS[0].id, name: DEMO_USERS[0].name });
+
+    const users = (await (await api('/users')).json()) as { id: string }[];
+    expect(users.map((user) => user.id)).toContain(DEMO_USERS[1].id);
+  });
+
+  test('lists, adds, and removes data room members with activity', async () => {
+    const dataroom = await createDataroom('Members');
+
+    const initial = (await (await api(`/datarooms/${dataroom.id}/members`)).json()) as {
+      role: string;
+      user: { id: string };
+    }[];
+    expect(initial).toEqual([
+      { dataroomId: dataroom.id, user: DEMO_USERS[0], role: 'owner', addedAt: expect.any(Number) },
+    ]);
+
+    const added = await json(`/datarooms/${dataroom.id}/members`, 'POST', {
+      userId: DEMO_USERS[1].id,
+      role: 'viewer',
+    });
+    expect(added.status).toBe(201);
+    expect(await added.json()).toMatchObject({ user: { id: DEMO_USERS[1].id }, role: 'viewer' });
+
+    const removed = await api(`/datarooms/${dataroom.id}/members/${DEMO_USERS[1].id}`, {
+      method: 'DELETE',
+    });
+    expect(removed.status).toBe(200);
+
+    const activity = (await (await api(`/datarooms/${dataroom.id}/activity`)).json()) as {
+      action: string;
+    }[];
+    expect(activity.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining(['dataroom.created', 'member.added', 'member.removed']),
+    );
+  });
+
+  test('favorites, storage, and move are backed by real state', async () => {
+    const dataroom = await createDataroom('Workspace State');
+    const source = (await (
+      await json(`/datarooms/${dataroom.id}/folders`, 'POST', { parentId: null, name: 'Source' })
+    ).json()) as { id: string };
+    const target = (await (
+      await json(`/datarooms/${dataroom.id}/folders`, 'POST', { parentId: null, name: 'Target' })
+    ).json()) as { id: string };
+    const uploaded = (await (
+      await api(`/datarooms/${dataroom.id}/files`, {
+        method: 'POST',
+        body: pdfFormData('move-me.pdf', source.id),
+      })
+    ).json()) as { id: string; size: number };
+
+    const favorite = await json('/favorites', 'PUT', {
+      dataroomId: dataroom.id,
+      nodeId: uploaded.id,
+    });
+    expect(favorite.status).toBe(200);
+    expect(await favorite.json()).toMatchObject({ nodeId: uploaded.id, nodeName: 'move-me.pdf' });
+
+    const moved = await json(`/nodes/${uploaded.id}/move`, 'POST', { parentId: target.id });
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toMatchObject({ parentId: target.id });
+
+    const storage = (await (await api('/storage')).json()) as {
+      usedBytes: number;
+      quotaBytes: number;
+    };
+    expect(storage.usedBytes).toBeGreaterThanOrEqual(uploaded.size);
+    expect(storage.quotaBytes).toBeGreaterThan(storage.usedBytes);
+
+    const favorites = (await (await api('/favorites')).json()) as { nodeId: string | null }[];
+    expect(favorites.map((entry) => entry.nodeId)).toContain(uploaded.id);
+
+    const activity = (await (
+      await api(`/datarooms/${dataroom.id}/activity?nodeId=${uploaded.id}`)
+    ).json()) as {
+      action: string;
+    }[];
+    expect(activity.map((entry) => entry.action)).toContain('node.moved');
   });
 });
 
@@ -240,6 +340,24 @@ describe('file upload and download API', () => {
     expect(download.headers.get('content-disposition')).toContain('report.pdf');
     const bytes = Buffer.from(await download.arrayBuffer());
     expect(bytes.equals(createPdfBuffer())).toBe(true);
+  });
+
+  test('serves non-ASCII filenames via RFC 5987 with a Latin-1-safe header', async () => {
+    const dataroom = await createDataroom('Non-ASCII');
+    const uploaded = (await (
+      await api(`/datarooms/${dataroom.id}/files`, {
+        method: 'POST',
+        body: pdfFormData('Отчёт.pdf'),
+      })
+    ).json()) as { id: string; name: string };
+    expect(uploaded.name).toBe('Отчёт.pdf');
+
+    const download = await api(`/nodes/${uploaded.id}/content`);
+    expect(download.status).toBe(200);
+    const disposition = download.headers.get('content-disposition') ?? '';
+    expect(disposition).toContain(`filename*=UTF-8''${encodeURIComponent('Отчёт.pdf')}`);
+    // Raw non-ASCII bytes in a header would make Node's setHeader throw.
+    expect(disposition).not.toMatch(/[^\x20-\x7e]/);
   });
 
   test('auto-suffixes duplicate names at the API level', async () => {

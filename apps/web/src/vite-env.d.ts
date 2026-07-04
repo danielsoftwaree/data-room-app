@@ -4,10 +4,10 @@
 declare module '*.css';
 
 interface ImportMetaEnv {
-  /** Clerk publishable key (auth scaffolded, not implemented — see docs/auth-clerk.md). */
-  readonly VITE_CLERK_PUBLISHABLE_KEY: string;
   /** Optional absolute API origin for deployed web builds. */
   readonly VITE_API_URL?: string;
+  /** "false" disables the MSW mock backend in dev (see src/mocks/enable.ts). */
+  readonly VITE_ENABLE_MOCKS?: string;
 }
 
 interface ImportMeta {

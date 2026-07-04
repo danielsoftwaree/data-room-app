@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import type { NodeType } from './index';
+import type { DataroomNode, NodeType } from './index';
 import {
   collectSubtreeIds,
   isNameTaken,
   NODE_NAME_MAX_LENGTH,
   nextAvailableName,
   sortNodes,
+  validateMoveTarget,
   validateNodeName,
 } from './index';
 
@@ -117,3 +118,73 @@ describe('collectSubtreeIds', () => {
     expect(collectSubtreeIds(nodes, 'root')).not.toContain('other');
   });
 });
+
+describe('validateMoveTarget', () => {
+  const nodes: DataroomNode[] = [
+    node({ id: 'folder-a', parentId: null, type: 'folder' }),
+    node({ id: 'folder-b', parentId: 'folder-a', type: 'folder' }),
+    node({ id: 'folder-c', parentId: null, type: 'folder' }),
+    node({ id: 'file-a', parentId: 'folder-a', type: 'file' }),
+    node({ id: 'other-folder', dataroomId: 'other', parentId: null, type: 'folder' }),
+  ];
+
+  test('allows moving to the root', () => {
+    expect(validateMoveTarget(nodes, 'file-a', null)).toEqual({ ok: true, parentId: null });
+  });
+
+  test('allows moving to a folder in the same data room', () => {
+    expect(validateMoveTarget(nodes, 'file-a', 'folder-c')).toEqual({
+      ok: true,
+      parentId: 'folder-c',
+    });
+  });
+
+  test('rejects moving into itself or a descendant', () => {
+    expect(validateMoveTarget(nodes, 'folder-a', 'folder-a')).toEqual({
+      ok: false,
+      error: 'target-is-self',
+    });
+    expect(validateMoveTarget(nodes, 'folder-a', 'folder-b')).toEqual({
+      ok: false,
+      error: 'target-is-descendant',
+    });
+  });
+
+  test('rejects missing, file, and cross-room targets', () => {
+    expect(validateMoveTarget(nodes, 'missing', null)).toEqual({
+      ok: false,
+      error: 'node-not-found',
+    });
+    expect(validateMoveTarget(nodes, 'folder-a', 'missing')).toEqual({
+      ok: false,
+      error: 'target-not-found',
+    });
+    expect(validateMoveTarget(nodes, 'folder-a', 'file-a')).toEqual({
+      ok: false,
+      error: 'target-not-folder',
+    });
+    expect(validateMoveTarget(nodes, 'folder-a', 'other-folder')).toEqual({
+      ok: false,
+      error: 'target-cross-dataroom',
+    });
+  });
+});
+
+function node(input: {
+  id: string;
+  dataroomId?: string;
+  parentId: string | null;
+  type: NodeType;
+}): DataroomNode {
+  const base = {
+    id: input.id,
+    dataroomId: input.dataroomId ?? 'room',
+    parentId: input.parentId,
+    name: input.id,
+    createdAt: 1,
+    updatedAt: 1,
+    createdBy: null,
+    updatedBy: null,
+  };
+  return input.type === 'folder' ? { ...base, type: 'folder' } : { ...base, type: 'file', size: 1 };
+}

@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react';
 import { getApiErrorMessage, useGetNodeContent } from '@repo/api-client';
 import type { FileNode } from '@repo/domain';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui/components/dialog';
 import { Skeleton } from '@repo/ui/components/skeleton';
+import { useObjectUrl } from '../../../shared/use-object-url';
 
 /**
  * Modal PDF preview.
@@ -36,20 +36,7 @@ function PdfContent({ file }: { file: FileNode }) {
   const content = useGetNodeContent(file.id);
   const blob = content.data?.data instanceof Blob ? content.data.data : null;
 
-  // Derive the object URL from the blob (no state); the effect below only
-  // handles the revoke side of the lifecycle.
-  const objectUrl = useMemo(() => {
-    if (!blob) return null;
-    // Force the correct MIME type so browsers render inline instead of downloading.
-    return URL.createObjectURL(
-      blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' }),
-    );
-  }, [blob]);
-
-  useEffect(() => {
-    if (!objectUrl) return;
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [objectUrl]);
+  const objectUrl = useObjectUrl(blob);
 
   if (content.isPending) {
     return (

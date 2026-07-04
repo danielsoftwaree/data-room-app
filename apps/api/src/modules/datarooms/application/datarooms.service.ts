@@ -3,6 +3,7 @@ import type { Dataroom } from '@repo/domain';
 import { isUniqueViolation } from '../../../shared/errors/database';
 import { BLOB_STORAGE } from '../../storage/blob-storage';
 import type { BlobStorage } from '../../storage/blob-storage';
+import { WorkspaceService } from '../../workspace/application/workspace.service';
 import type { DataroomsRepository } from '../domain/datarooms.repository.port';
 import { DATAROOMS_REPOSITORY } from '../domain/datarooms.repository.port';
 import { DataroomNotFoundError, NameConflictError } from '../domain/errors';
@@ -13,16 +14,25 @@ export class DataroomsService {
   constructor(
     @Inject(DATAROOMS_REPOSITORY) private readonly repository: DataroomsRepository,
     @Inject(BLOB_STORAGE) private readonly storage: BlobStorage,
+    @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
   ) {}
 
   async listDatarooms(): Promise<Dataroom[]> {
     return this.repository.listDatarooms();
   }
 
-  async createDataroom(rawName: string): Promise<Dataroom> {
+  async createDataroom(rawName: string, userId: string): Promise<Dataroom> {
     const name = parseNodeName(rawName);
     try {
-      return await this.repository.createDataroom(name);
+      const dataroom = await this.repository.createDataroom(name, userId);
+      await this.workspace.ensureOwnerMember(dataroom.id, userId);
+      await this.workspace.recordActivity({
+        dataroomId: dataroom.id,
+        node: null,
+        action: 'dataroom.created',
+        actorId: userId,
+      });
+      return dataroom;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`A data room named "${name}" already exists`);
@@ -37,11 +47,11 @@ export class DataroomsService {
     return dataroom;
   }
 
-  async renameDataroom(id: string, rawName: string): Promise<Dataroom> {
+  async renameDataroom(id: string, rawName: string, userId: string): Promise<Dataroom> {
     await this.getDataroom(id);
     const name = parseNodeName(rawName);
     try {
-      const updated = await this.repository.renameDataroom(id, name);
+      const updated = await this.repository.renameDataroom(id, name, userId);
       if (!updated) throw new DataroomNotFoundError();
       return updated;
     } catch (error) {

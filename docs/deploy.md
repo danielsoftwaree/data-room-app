@@ -1,13 +1,13 @@
 # Railway deploy
 
-Status: repo-side deploy configuration is ready, but this environment cannot
-provision Railway resources because the `railway` CLI is not installed and no
-authenticated Railway project context is available.
+Status: repo-side deploy configuration is ready (build/deploy commands live in
+committed `railway.json` config-as-code files). Provisioning the actual Railway
+project/services is the remaining manual step.
 
 Official references used:
 
+- Railway config as code: https://docs.railway.com/config-as-code
 - Railway monorepo deployment: https://docs.railway.com/deployments/monorepo
-- Railway build configuration: https://docs.railway.com/builds/build-configuration
 - Railway variables: https://docs.railway.com/variables
 
 ## Topology
@@ -23,19 +23,23 @@ Keep the repository root as the source root for both app services. This is a
 shared Bun/Turbo monorepo; setting `rootDirectory` to `apps/api` or `apps/web`
 would hide shared workspace packages.
 
+## Config as code
+
+Build and deploy commands are committed as `railway.json` files, so they don't
+have to be typed into the dashboard:
+
+- `apps/api/railway.json` - Railpack build, DB-migrate pre-deploy, start command,
+  `/api/health` healthcheck.
+- `apps/web/railway.json` - Railpack build for the Vite static bundle.
+
+Because both services share the repo root, set each service's **config file
+path** (Settings → Config-as-code) to its file - `apps/api/railway.json` for the
+API service and `apps/web/railway.json` for the web service - so they don't both
+read a root file. Only the variables below still need to be set in the dashboard.
+
 ## API service
 
-Build settings:
-
-```text
-Builder: Railpack
-Build command: bun run build --filter=api
-Pre-deploy command: bun run --cwd packages/db db:migrate
-Start command: bun run --cwd apps/api start:prod
-Healthcheck path: /api/health
-```
-
-Variables:
+Build/deploy come from `apps/api/railway.json`. Variables:
 
 ```text
 DATABASE_URL=${{Postgres.DATABASE_URL}}
@@ -53,14 +57,7 @@ database plan needs a smaller pool than the default `10`.
 
 ## Web service
 
-Build settings:
-
-```text
-Builder: Railpack
-Build command: bun run build --filter=web
-```
-
-Variables:
+Build comes from `apps/web/railway.json`. Variables:
 
 ```text
 VITE_API_URL=https://<api-public-domain>

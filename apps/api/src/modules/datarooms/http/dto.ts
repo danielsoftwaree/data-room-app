@@ -5,6 +5,7 @@ import type {
   CreateFolderRequest,
   DeleteDataroomResult,
   DeleteNodeResult,
+  MoveNodeRequest,
   RenameNodeRequest,
   UploadFileRequest,
 } from '@repo/contracts';
@@ -22,6 +23,12 @@ export class DataroomDto implements Dataroom {
 
   @ApiProperty({ description: 'Unix epoch ms' })
   updatedAt!: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  createdBy!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  updatedBy!: string | null;
 }
 
 export class NodeDto {
@@ -52,6 +59,12 @@ export class NodeDto {
 
   @ApiProperty({ description: 'Unix epoch ms' })
   updatedAt!: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  createdBy!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  updatedBy!: string | null;
 }
 
 export class CreateDataroomDto implements CreateDataroomRequest {
@@ -75,6 +88,13 @@ export class RenameDto implements RenameNodeRequest {
   @ApiProperty()
   @IsString()
   name!: string;
+}
+
+export class MoveNodeDto implements MoveNodeRequest {
+  @ApiProperty({ type: String, nullable: true, description: 'null = data room root' })
+  @IsOptional()
+  @IsString()
+  parentId!: string | null;
 }
 
 export class ListNodesQueryDto {

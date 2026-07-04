@@ -10,11 +10,19 @@ export function formatFileSize(bytes: number): string {
   return `${rounded} ${units[exponent]}`;
 }
 
-/** Short absolute date (epoch ms) for list rows, e.g. "Jul 4, 2026". */
+/**
+ * Short absolute date (epoch ms) for list rows, e.g. "Jul 4, 2026".
+ * The locale is pinned so dates always match the app's English copy.
+ */
 export function formatDate(epochMs: number): string {
-  return new Date(epochMs).toLocaleDateString(undefined, {
+  return new Date(epochMs).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
+}
+
+/** Correctly pluralized count, e.g. "1 member" / "3 members". */
+export function formatCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }

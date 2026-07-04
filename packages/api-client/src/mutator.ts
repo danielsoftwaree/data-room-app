@@ -23,7 +23,17 @@ export function getApiErrorMessage(error: unknown, fallback = 'Something went wr
 }
 
 function extractMessage(body: unknown): string | undefined {
-  if (body && typeof body === 'object' && 'message' in body) {
+  if (!body || typeof body !== 'object') return undefined;
+
+  // ApiErrorResponse contract: { error: { code, message } }.
+  const nested = (body as { error?: unknown }).error;
+  if (nested && typeof nested === 'object' && 'message' in nested) {
+    const message = (nested as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+
+  // Fallback for plain Nest-shaped bodies ({ message }), e.g. from proxies.
+  if ('message' in body) {
     const message = (body as { message?: unknown }).message;
     if (typeof message === 'string') return message;
     if (Array.isArray(message)) return message.join(', ');
@@ -32,11 +42,24 @@ function extractMessage(body: unknown): string | undefined {
 }
 
 export const customFetch = async <T>(url: string, options: RequestInit): Promise<T> => {
-  const response = await fetch(withApiBaseUrl(url), options);
+  const response = await fetch(withApiBaseUrl(url), withDemoUserHeader(options));
   const body = await readResponseBody(response);
   if (!response.ok) throw new ApiError(response.status, body);
   return { data: body, status: response.status, headers: response.headers } as T;
 };
+
+function withDemoUserHeader(options: RequestInit): RequestInit {
+  const userId = getDemoUserId();
+  if (!userId) return options;
+  const headers = new Headers(options.headers);
+  headers.set('x-user-id', userId);
+  return { ...options, headers };
+}
+
+function getDemoUserId(): string {
+  if (typeof localStorage === 'undefined') return '';
+  return localStorage.getItem('demo-user-id')?.trim() ?? '';
+}
 
 function withApiBaseUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;

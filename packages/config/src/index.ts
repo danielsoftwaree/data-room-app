@@ -8,3 +8,5 @@ export const UPLOAD = {
   acceptedExtensions: ['.pdf'],
   maxFileSizeBytes: 50 * 1024 * 1024,
 } as const;
+
+export const STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;

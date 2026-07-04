@@ -32,7 +32,7 @@
   - `tooling/*` — shared configs as workspace packages (`@repo/typescript-config`, `@repo/lint-config`, `@repo/format-config`, `@repo/tailwind-config`).
 - Entry points: `apps/web/src/main.tsx`, `apps/api/src/main.ts` (HTTP :3000), `apps/api/src/openapi.ts` (emits `openapi.json`, no listener).
 - Important directories: `docs/monorepo.md` (dependency rules + "Keeping order"), `docs/architecture.md`, `docs/design-system/` (design references), `tasks/` (one folder per work item: `tasks/<id>-<slug>/PLAN.md`), `tests/e2e/` (placeholder).
-- Auth: Clerk is scaffolded only (deps + `.env.example` + `docs/auth-clerk.md`); do NOT import Clerk in app code until auth is implemented.
+- Auth: out of scope for the MVP; Clerk deps are intentionally not installed. `docs/auth-clerk.md` is a design sketch of how it'd be added. Do NOT add auth code or a login wall unless asked.
 - Local development command: `bun run dev` (turbo runs web on :5173 with `/api` proxy → api on :3000).
 - Test command: `bun run test` (domain rules, api service + exception filter, HTTP e2e over fakes — no PostgreSQL required).
 - Typecheck/lint command: `bun run typecheck`, `bun run lint`, `bun run format:check`.

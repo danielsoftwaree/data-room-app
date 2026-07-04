@@ -15,8 +15,14 @@ import {
 import { EmptyState } from '@repo/ui/components/empty-state';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { PlusIcon } from 'lucide-react';
+import { SparklesIcon } from 'lucide-react';
 import { NameDialog } from '../../../shared/NameDialog';
-import { useCreateDataroom, useDeleteDataroom, useRenameDataroom } from '../hooks';
+import {
+  useCreateDataroom,
+  useCreateSampleDataroom,
+  useDeleteDataroom,
+  useRenameDataroom,
+} from '../hooks';
 import { DataroomRow } from './DataroomRow';
 
 export function DataroomsScreen() {
@@ -29,6 +35,7 @@ export function DataroomsScreen() {
   const [deleteTarget, setDeleteTarget] = useState<Dataroom | null>(null);
 
   const createDataroom = useCreateDataroom();
+  const createSample = useCreateSampleDataroom();
   const renameDataroom = useRenameDataroom();
   const deleteDataroom = useDeleteDataroom();
 
@@ -36,20 +43,24 @@ export function DataroomsScreen() {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Data rooms</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight uppercase">
+            Data rooms
+          </h1>
           <p className="text-sm text-muted-foreground">
             Secure spaces for organizing due-diligence documents.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            createDataroom.reset();
-            setCreateOpen(true);
-          }}
-        >
-          <PlusIcon className="size-4" />
-          New data room
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            onClick={() => {
+              createDataroom.reset();
+              setCreateOpen(true);
+            }}
+          >
+            <PlusIcon className="size-4" />
+            New data room
+          </Button>
+        </div>
       </header>
 
       {datarooms.isPending ? (
@@ -71,17 +82,27 @@ export function DataroomsScreen() {
       ) : rooms.length === 0 ? (
         <EmptyState
           title="No data rooms yet"
-          description="Create your first data room to start organizing documents."
+          description="Create your first data room, or load a sample with a realistic due-diligence structure to explore."
           action={
-            <Button
-              onClick={() => {
-                createDataroom.reset();
-                setCreateOpen(true);
-              }}
-            >
-              <PlusIcon className="size-4" />
-              New data room
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                onClick={() => {
+                  createDataroom.reset();
+                  setCreateOpen(true);
+                }}
+              >
+                <PlusIcon className="size-4" />
+                New data room
+              </Button>
+              <Button
+                variant="outline"
+                disabled={createSample.isPending}
+                onClick={() => createSample.mutate()}
+              >
+                <SparklesIcon className="size-4" />
+                {createSample.isPending ? 'Creating sample…' : 'Create sample data room'}
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -156,6 +177,7 @@ export function DataroomsScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              disabled={deleteDataroom.isPending}
               onClick={(event) => {
                 event.preventDefault();
                 if (!deleteTarget) return;

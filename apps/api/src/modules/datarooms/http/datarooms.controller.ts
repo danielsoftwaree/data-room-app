@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Inject,
   Param,
   Patch,
@@ -22,6 +23,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { UPLOAD } from '@repo/config';
+import { WorkspaceService } from '../../workspace/application/workspace.service';
 import { DataroomsService } from '../application/datarooms.service';
 import { NodesService } from '../application/nodes.service';
 import { DataroomsExceptionFilter } from './datarooms-exception.filter';
@@ -45,6 +47,7 @@ export class DataroomsController {
   constructor(
     @Inject(DataroomsService) private readonly dataroomsService: DataroomsService,
     @Inject(NodesService) private readonly nodesService: NodesService,
+    @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
   ) {}
 
   @Get()
@@ -55,8 +58,12 @@ export class DataroomsController {
 
   @Post()
   @ApiCreatedResponse({ type: DataroomDto })
-  createDataroom(@Body() body: CreateDataroomDto): Promise<DataroomDto> {
-    return this.dataroomsService.createDataroom(body.name);
+  async createDataroom(
+    @Body() body: CreateDataroomDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DataroomDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.dataroomsService.createDataroom(body.name, userId);
   }
 
   @Get(':id')
@@ -67,8 +74,13 @@ export class DataroomsController {
 
   @Patch(':id')
   @ApiOkResponse({ type: DataroomDto })
-  renameDataroom(@Param('id') id: string, @Body() body: RenameDto): Promise<DataroomDto> {
-    return this.dataroomsService.renameDataroom(id, body.name);
+  async renameDataroom(
+    @Param('id') id: string,
+    @Body() body: RenameDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DataroomDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.dataroomsService.renameDataroom(id, body.name, userId);
   }
 
   @Delete(':id')
@@ -91,8 +103,13 @@ export class DataroomsController {
 
   @Post(':id/folders')
   @ApiCreatedResponse({ type: NodeDto })
-  createFolder(@Param('id') id: string, @Body() body: CreateFolderDto): Promise<NodeDto> {
-    return this.nodesService.createFolder(id, body.parentId ?? null, body.name);
+  async createFolder(
+    @Param('id') id: string,
+    @Body() body: CreateFolderDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<NodeDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.nodesService.createFolder(id, body.parentId ?? null, body.name, userId);
   }
 
   @Post(':id/files')
@@ -109,11 +126,17 @@ export class DataroomsController {
     },
   })
   @ApiCreatedResponse({ type: NodeDto })
-  createFile(
+  async createFile(
     @Param('id') id: string,
     @Body() body: UploadFileDto,
     @UploadedFile() file?: UploadedFilePayload,
+    @Headers('x-user-id') rawUserId?: string | string[],
   ): Promise<NodeDto> {
-    return this.nodesService.createFile(id, body.parentId ?? null, toPdfUploadInput(file));
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.nodesService.createFile(id, body.parentId ?? null, toPdfUploadInput(file), userId);
   }
+}
+
+function normalizeHeader(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }

@@ -1,28 +1,57 @@
 /* Shared design tokens for the whole monorepo (Tailwind v4).
    Imported by @repo/ui globals.css; keep tokens here, not in apps.
-   The app is light-only: there is no .dark theme (dark mode removed). */
+   Light is the default; `.dark` on <html> switches the semantic tokens. */
 
+/* Palette: "Discord" — the design language documented in
+   docs/design-system/DESIGN-discord.md, mapped onto the app's semantic tokens.
+   Blurple (#5865f2) is the single brand action colour; light mode is a clean
+   Blurple-on-white working surface, dark mode is the true deep-indigo canvas.
+   Change these values to re-theme the whole app in one place. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  color-scheme: light;
+  --background: #f7f8fb; /* soft off-white canvas */
+  --foreground: #0a0d3a; /* indigo ink */
+  --card: #ffffff;
+  --card-foreground: #0a0d3a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0d3a;
+  --primary: #5865f2; /* Blurple */
+  --primary-foreground: #ffffff;
+  --secondary: #eaecfb; /* soft indigo */
+  --secondary-foreground: #2f3486;
+  --muted: #eef0f6;
+  --muted-foreground: #5a5f7a;
+  --accent: #eaecfb; /* indigo tint (hover) */
+  --accent-foreground: #2f3486;
+  --destructive: #e5484d; /* danger red */
+  --destructive-foreground: #ffffff;
+  --border: #e2e4f0;
+  --input: #e2e4f0;
+  --ring: #5865f2;
+  --radius: 1rem; /* generous Discord rounding: sm 12 / md 14 / lg 16 / xl 20 */
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0a0d3a; /* deep-indigo canvas */
+  --foreground: #f7f8ff;
+  --card: #161a4a; /* raised indigo panel */
+  --card-foreground: #f7f8ff;
+  --popover: #1e2353; /* surface-indigo */
+  --popover-foreground: #f7f8ff;
+  --primary: #5865f2; /* Blurple pops on indigo */
+  --primary-foreground: #ffffff;
+  --secondary: #1e2353;
+  --secondary-foreground: #f7f8ff;
+  --muted: #1e2353;
+  --muted-foreground: #b5bac8;
+  --accent: #2b3170; /* one step up for hover */
+  --accent-foreground: #ffffff;
+  --destructive: #f23f42;
+  --destructive-foreground: #ffffff;
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: #5865f2;
 }
 
 @theme inline {
@@ -46,18 +75,19 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Brand palette (kept from the original theme). */
-  --color-brand-50: #eef4ff;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
+  /* App type: Hanken Grotesk (heavy display) + Plus Jakarta Sans (body/UI),
+     the open-source stand-ins for Discord's proprietary ABC Ginto / ggsans.
+     Loaded as webfonts in apps/web/index.html. */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Hanken Grotesk', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* --- Discord design system tokens (from docs/design-system/DESIGN-discord.md) --- */
+  /* --- Discord design system tokens (from docs/design-system/DESIGN-discord.md).
+     Consumed by the /design-system showcase page. --- */
   --color-discord-primary: #5865f2;
   --color-discord-on-primary: #ffffff;
   --color-discord-green: #35ed7e;
@@ -81,6 +111,7 @@
   --radius-discord-jumbo: 120px;
   --radius-discord-full: 9999px;
 
-  --font-discord-display: 'ABC Ginto Nord', 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
-  --font-discord-body: 'ABC Ginto', ggsans, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-discord-display: 'Hanken Grotesk', 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
+  --font-discord-body:
+    'Plus Jakarta Sans', ggsans, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }

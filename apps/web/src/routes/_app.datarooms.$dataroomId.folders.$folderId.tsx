@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { DataroomBrowserScreen } from '../features/dataroom-browser';
 
-export const Route = createFileRoute('/datarooms/$dataroomId/')({
+export const Route = createFileRoute('/_app/datarooms/$dataroomId/folders/$folderId')({
   validateSearch,
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { dataroomId } = Route.useParams();
+  const { dataroomId, folderId } = Route.useParams();
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
 
@@ -18,7 +18,7 @@ function RouteComponent() {
   return (
     <DataroomBrowserScreen
       dataroomId={dataroomId}
-      folderId={null}
+      folderId={folderId}
       searchTerm={q ?? ''}
       onSearchTermChange={handleSearchTermChange}
     />

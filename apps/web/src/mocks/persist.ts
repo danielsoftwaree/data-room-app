@@ -6,21 +6,49 @@
  * Raw IndexedDB API (no new deps). Every failure degrades gracefully to
  * in-memory-only behavior - persistence is a dev nicety, never a requirement.
  */
-import type { Dataroom, DataroomNode } from '@repo/domain';
+import type { ActivityAction, Dataroom, DataroomNode, MemberRole, NodeType } from '@repo/domain';
 
 const DB_NAME = 'dataroom-dev-mocks';
 const DB_VERSION = 1;
 const STORE_NAME = 'state';
-const STATE_KEY = 'v1';
+const STATE_KEY = 'v2';
 
 export interface PersistedFile {
   contentType: string;
   bytes: Uint8Array;
 }
 
+export interface PersistedMember {
+  dataroomId: string;
+  userId: string;
+  role: MemberRole;
+  createdAt: number;
+}
+
+export interface PersistedFavorite {
+  userId: string;
+  dataroomId: string;
+  nodeId: string | null;
+  createdAt: number;
+}
+
+export interface PersistedActivity {
+  id: string;
+  dataroomId: string;
+  nodeId: string | null;
+  nodeName: string | null;
+  nodeType: NodeType | null;
+  action: ActivityAction;
+  actorId: string;
+  createdAt: number;
+}
+
 export interface PersistedState {
   datarooms: Dataroom[];
   nodes: DataroomNode[];
+  members: PersistedMember[];
+  favorites: PersistedFavorite[];
+  activity: PersistedActivity[];
   /** nodeId -> stored file content (Uint8Array survives structured clone). */
   files: [string, PersistedFile][];
   clock: number;

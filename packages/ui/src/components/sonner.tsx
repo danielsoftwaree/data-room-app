@@ -8,16 +8,16 @@ import {
 import { Toaster as Sonner, toast, type ToasterProps } from 'sonner';
 
 /**
- * App is light-only (see tooling/tailwind-config/theme.css), so the toaster is
- * pinned to the light theme rather than reading next-themes.
+ * Defaults to the light theme; the app passes `theme` explicitly when it
+ * toggles dark mode (we don't depend on next-themes).
  *
  * `toast` is re-exported so the app imports it from @repo/ui (its single UI
  * entry point) instead of depending on `sonner` directly.
  */
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = ({ theme = 'light', ...props }: ToasterProps) => {
   return (
     <Sonner
-      theme="light"
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

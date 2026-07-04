@@ -64,18 +64,25 @@ CRUD и списки). Ниже — что стоит за каждым пунк
 Монорепозиторий: **Bun workspaces + Turborepo** (см. `docs/monorepo.md`).
 
 - **apps/web** — Vite + React 18 + TypeScript, прокси `/api` → `:3000`. Здесь живёт весь Data Room UX.
-- **apps/api** — NestJS, намеренно тонкий (`/api/health`, контрактная поверхность): тестовое разрешает
-  мокнутый бэкенд, 80% усилий — во фронте.
+- **apps/api** — NestJS: реальные CRUD-эндпоинты (датарумы, папки, узлы) на in-memory store,
+  бизнес-правила берёт из `@repo/domain`, Swagger UI на `/api/docs`, эмиссия `openapi.json`
+  без старта сервера. Хранилище — in-memory намеренно: тестовое разрешает мок, 80% усилий — во фронте.
 - **packages/domain** — чистая доменная модель и бизнес-правила (см. ниже), без React/Nest/browser API.
-- **packages/contracts** — DTO-поверхность web↔api.
+- **packages/contracts** — авторская DTO-поверхность web↔api (DTO-классы api её реализуют).
+- **packages/api-client** — **генерируемый** типизированный клиент: api (Nest + swagger) →
+  `openapi.json` → Orval → TanStack Query хуки + fetch-мутатор с `ApiError`. Генерат в git не
+  коммитится, воспроизводится `bun run generate`; turbo-граф: `api#openapi` →
+  `api-client#generate` → `web#build`.
 - **packages/ui** — примитивы дизайн-системы (Button, EmptyState), без бизнес-логики.
 - **packages/config** — глобальные константы (лимиты загрузки, API prefix).
 - **tooling/** — общие конфиги как workspace-пакеты: `@repo/typescript-config`, `@repo/lint-config`,
   `@repo/format-config`, `@repo/tailwind-config` (design-токены `@theme`).
 - Качество: turbo task graph (build/typecheck), root ESLint + Prettier — всё зелёное.
 
-Ещё не подключено (следующие шаги): **Tailwind + shadcn/ui**, **TanStack Query**,
-**IndexedDB (Dexie)** для метаданных и PDF-блобов, **роутер** (URL отражает текущую папку).
+Ещё не подключено (следующие шаги): **Tailwind + shadcn/ui**, **роутер** (URL отражает текущую
+папку). TanStack Query уже подключён через генерируемые хуки `@repo/api-client`. Решение по данным
+изменилось: вместо Dexie/IndexedDB на клиенте — реальный API с in-memory хранилищем (см. выше);
+хранение PDF-блобов решим на этапе файлов (upload на api или object URL на клиенте).
 
 ### Модель данных (реализована в `@repo/domain`)
 
@@ -94,7 +101,7 @@ interface Dataroom {
 Правила уже в `@repo/domain` как чистые функции: `validateNodeName` (пустые/длинные/запрещённые
 символы), `isNameTaken` + `nextAvailableName` («file (1).pdf», case-insensitive),
 `sortNodes` (папки сверху, по имени), `collectSubtreeIds` (каскадное удаление / подсчёт).
-Хранение блобов (blobKey → отдельная таблица в Dexie) добавим вместе с data layer.
+Хранение PDF-блобов добавим на этапе файлов (endpoint загрузки на api или object URL на клиенте).
 
 ### Функционал (обязательный)
 
@@ -112,7 +119,8 @@ interface Dataroom {
 - Удаление непустой папки — предупреждение с подсчётом содержимого.
 - Переименование в существующее имя.
 - Множественная загрузка файлов, частичные ошибки.
-- Обновление страницы — состояние сохраняется (IndexedDB).
+- Обновление страницы — метаданные живут на api (in-memory): переживают refresh вкладки,
+  но не рестарт сервера; трейд-офф фиксируем в README.
 
 ### Полировка (в рамках тайм-бокса)
 
@@ -130,8 +138,9 @@ interface Dataroom {
 1. ✅ **Скелет** — сделано шире плана: монорепа Bun + Turborepo, apps/web + apps/api,
    packages (domain/contracts/ui/config), tooling-конфиги, lint/format, docs.
    Осталось из скелета: Tailwind + shadcn в apps/web, роутер.
-2. **Data layer** (~1 ч): Dexie-схема, repo-слой (async API-подобные функции), TanStack Query хуки —
-   поверх типов и правил из `@repo/domain`.
+2. ✅ **Data layer** — сделано иначе, чем планировалось: вместо Dexie — реальный NestJS CRUD
+   (in-memory store поверх правил `@repo/domain`) и генерируемый типизированный клиент
+   (swagger → openapi.json → Orval → TanStack Query хуки). Смоук-экран в web уже ходит через них.
 3. **CRUD папок + навигация** (~1–1.5 ч): дерево, breadcrumbs, create/rename/delete с каскадом.
 4. **Файлы** (~1–1.5 ч): upload (валидация PDF), просмотр, rename/delete.
 5. **Edge cases + полировка** (~1 ч): чек-лист выше, пустые состояния, тосты.

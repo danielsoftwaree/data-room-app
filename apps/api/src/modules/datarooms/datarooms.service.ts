@@ -1,18 +1,33 @@
-import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
-import type { Dataroom, DataroomNode, FolderNode, NameValidationError } from '@repo/domain';
+import { UPLOAD } from '@repo/config';
+import type {
+  Dataroom,
+  DataroomNode,
+  FileNode,
+  FolderNode,
+  NameValidationError,
+} from '@repo/domain';
 import {
   collectSubtreeIds,
   isNameTaken,
   NODE_NAME_MAX_LENGTH,
+  nextAvailableName,
   sortNodes,
   validateNodeName,
 } from '@repo/domain';
+import { isUniqueViolation } from '../../shared/errors/database';
+import { BLOB_STORAGE } from '../storage/blob-storage';
+import type { BlobStorage } from '../storage/blob-storage';
+import { DataroomsRepository } from './datarooms.repository';
+import type { FileContentPayload, UploadedFilePayload } from './file-upload';
 
 const NAME_ERROR_MESSAGES: Record<NameValidationError, string> = {
   empty: 'Name cannot be empty',
@@ -21,124 +36,214 @@ const NAME_ERROR_MESSAGES: Record<NameValidationError, string> = {
 };
 
 /**
- * In-memory store, deliberately shaped like a repository over a database.
  * Business rules (naming, duplicates, cascades) come from @repo/domain.
+ * Node/dataroom metadata lives in the repository; file bytes live behind
+ * BlobStorage (db bytea locally, S3-compatible bucket in production).
  */
 @Injectable()
 export class DataroomsService {
-  private readonly datarooms = new Map<string, Dataroom>();
-  private readonly nodes = new Map<string, DataroomNode>();
+  private readonly logger = new Logger(DataroomsService.name);
 
-  listDatarooms(): Dataroom[] {
-    return [...this.datarooms.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-    );
+  constructor(
+    private readonly repository: DataroomsRepository,
+    @Inject(BLOB_STORAGE) private readonly storage: BlobStorage,
+  ) {}
+
+  async listDatarooms(): Promise<Dataroom[]> {
+    return this.repository.listDatarooms();
   }
 
-  createDataroom(rawName: string): Dataroom {
+  async createDataroom(rawName: string): Promise<Dataroom> {
     const name = this.validateName(rawName);
-    const existing = this.listDatarooms().map((d) => d.name);
+    const existing = (await this.repository.listDatarooms()).map((d) => d.name);
     if (isNameTaken(existing, name)) {
       throw new ConflictException(`A data room named "${name}" already exists`);
     }
-    const now = Date.now();
-    const dataroom: Dataroom = { id: randomUUID(), name, createdAt: now, updatedAt: now };
-    this.datarooms.set(dataroom.id, dataroom);
-    return dataroom;
+    try {
+      return await this.repository.createDataroom(name);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(`A data room named "${name}" already exists`);
+      }
+      throw error;
+    }
   }
 
-  getDataroom(id: string): Dataroom {
-    const dataroom = this.datarooms.get(id);
+  async getDataroom(id: string): Promise<Dataroom> {
+    const dataroom = await this.repository.findDataroom(id);
     if (!dataroom) throw new NotFoundException('Data room not found');
     return dataroom;
   }
 
-  renameDataroom(id: string, rawName: string): Dataroom {
-    const dataroom = this.getDataroom(id);
+  async renameDataroom(id: string, rawName: string): Promise<Dataroom> {
+    await this.getDataroom(id);
     const name = this.validateName(rawName);
-    const otherNames = this.listDatarooms()
+    const otherNames = (await this.repository.listDatarooms())
       .filter((d) => d.id !== id)
       .map((d) => d.name);
     if (isNameTaken(otherNames, name)) {
       throw new ConflictException(`A data room named "${name}" already exists`);
     }
-    const updated: Dataroom = { ...dataroom, name, updatedAt: Date.now() };
-    this.datarooms.set(id, updated);
-    return updated;
+    try {
+      const updated = await this.repository.renameDataroom(id, name);
+      if (!updated) throw new NotFoundException('Data room not found');
+      return updated;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(`A data room named "${name}" already exists`);
+      }
+      throw error;
+    }
   }
 
-  deleteDataroom(id: string): { deletedNodeIds: string[] } {
-    this.getDataroom(id);
-    const deletedNodeIds = [...this.nodes.values()]
-      .filter((n) => n.dataroomId === id)
-      .map((n) => n.id);
-    for (const nodeId of deletedNodeIds) this.nodes.delete(nodeId);
-    this.datarooms.delete(id);
+  async deleteDataroom(id: string): Promise<{ deletedNodeIds: string[] }> {
+    await this.getDataroom(id);
+    const dataroomNodes = await this.repository.listNodes(id);
+    const deletedNodeIds = dataroomNodes.map((node) => node.id);
+    const fileIds = dataroomNodes.filter((node) => node.type === 'file').map((node) => node.id);
+    await this.repository.deleteDataroom(id);
+    await this.cleanupBlobs(fileIds);
     return { deletedNodeIds };
   }
 
   /** Returns all nodes of a dataroom (flat, sorted); the client assembles the tree. */
-  listNodes(dataroomId: string): DataroomNode[] {
-    this.getDataroom(dataroomId);
-    return sortNodes([...this.nodes.values()].filter((n) => n.dataroomId === dataroomId));
+  async listNodes(dataroomId: string): Promise<DataroomNode[]> {
+    await this.getDataroom(dataroomId);
+    return sortNodes(await this.repository.listNodes(dataroomId));
   }
 
-  createFolder(dataroomId: string, parentId: string | null, rawName: string): FolderNode {
-    this.getDataroom(dataroomId);
-    this.assertParentFolder(dataroomId, parentId);
+  async createFolder(
+    dataroomId: string,
+    parentId: string | null,
+    rawName: string,
+  ): Promise<FolderNode> {
+    await this.getDataroom(dataroomId);
+    await this.assertParentFolder(dataroomId, parentId);
     const name = this.validateName(rawName);
-    if (isNameTaken(this.siblingNames(dataroomId, parentId), name)) {
+    if (isNameTaken(await this.repository.siblingNames(dataroomId, parentId), name)) {
       throw new ConflictException(`"${name}" already exists in this folder`);
     }
-    const now = Date.now();
-    const folder: FolderNode = {
-      id: randomUUID(),
-      dataroomId,
-      parentId,
-      type: 'folder',
-      name,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.nodes.set(folder.id, folder);
-    return folder;
+    try {
+      return await this.repository.createFolder({ dataroomId, parentId, name });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(`"${name}" already exists in this folder`);
+      }
+      throw error;
+    }
   }
 
-  renameNode(nodeId: string, rawName: string): DataroomNode {
-    const node = this.getNode(nodeId);
+  async createFile(
+    dataroomId: string,
+    parentId: string | null,
+    file: UploadedFilePayload | undefined,
+  ): Promise<FileNode> {
+    await this.getDataroom(dataroomId);
+    await this.assertParentFolder(dataroomId, parentId);
+
+    const upload = this.validateUpload(file);
+    const desiredName = this.validateName(upload.originalName);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const name = nextAvailableName(
+        await this.repository.siblingNames(dataroomId, parentId),
+        desiredName,
+      );
+      let node: FileNode;
+      try {
+        node = await this.repository.createFileNode({
+          dataroomId,
+          parentId,
+          name,
+          size: upload.size,
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        continue;
+      }
+
+      try {
+        await this.storage.put({
+          key: node.id,
+          content: upload.content,
+          contentType: upload.contentType,
+        });
+      } catch (error) {
+        // Compensate: never leave a metadata row without its bytes.
+        await this.repository.deleteNode(node.id).catch(() => undefined);
+        throw error;
+      }
+      return node;
+    }
+
+    throw new ConflictException(`"${desiredName}" already exists in this folder`);
+  }
+
+  async renameNode(nodeId: string, rawName: string): Promise<DataroomNode> {
+    const node = await this.getNode(nodeId);
     const name = this.validateName(rawName);
-    const siblings = this.siblingNames(node.dataroomId, node.parentId, node.id);
+    const siblings = await this.repository.siblingNames(node.dataroomId, node.parentId, node.id);
     if (isNameTaken(siblings, name)) {
       throw new ConflictException(`"${name}" already exists in this folder`);
     }
-    const updated: DataroomNode = { ...node, name, updatedAt: Date.now() };
-    this.nodes.set(nodeId, updated);
-    return updated;
+    try {
+      const updated = await this.repository.renameNode(nodeId, name);
+      if (!updated) throw new NotFoundException('Node not found');
+      return updated;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(`"${name}" already exists in this folder`);
+      }
+      throw error;
+    }
   }
 
-  deleteNode(nodeId: string): { deletedIds: string[] } {
-    const node = this.getNode(nodeId);
-    const dataroomNodes = [...this.nodes.values()].filter((n) => n.dataroomId === node.dataroomId);
+  async deleteNode(nodeId: string): Promise<{ deletedIds: string[] }> {
+    const node = await this.getNode(nodeId);
+    const dataroomNodes = await this.repository.listNodes(node.dataroomId);
     const deletedIds = collectSubtreeIds(dataroomNodes, nodeId);
-    for (const id of deletedIds) this.nodes.delete(id);
+    const deletedIdSet = new Set(deletedIds);
+    const fileIds = dataroomNodes
+      .filter((candidate) => candidate.type === 'file' && deletedIdSet.has(candidate.id))
+      .map((candidate) => candidate.id);
+    await this.repository.deleteNode(nodeId);
+    await this.cleanupBlobs(fileIds);
     return { deletedIds };
   }
 
-  private getNode(id: string): DataroomNode {
-    const node = this.nodes.get(id);
+  async getFileContent(nodeId: string): Promise<FileContentPayload> {
+    const node = await this.repository.findNode(nodeId);
+    if (!node || node.type !== 'file') throw new NotFoundException('File not found');
+    const blob = await this.storage.get(node.id);
+    if (!blob) throw new NotFoundException('File not found');
+    return {
+      name: node.name,
+      size: node.size,
+      content: blob.content,
+      contentType: blob.contentType,
+    };
+  }
+
+  private async getNode(id: string): Promise<DataroomNode> {
+    const node = await this.repository.findNode(id);
     if (!node) throw new NotFoundException('Node not found');
     return node;
   }
 
-  private siblingNames(dataroomId: string, parentId: string | null, excludeId?: string): string[] {
-    return [...this.nodes.values()]
-      .filter((n) => n.dataroomId === dataroomId && n.parentId === parentId && n.id !== excludeId)
-      .map((n) => n.name);
+  private async cleanupBlobs(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    try {
+      await this.storage.deleteMany(keys);
+    } catch (error) {
+      // Metadata is already gone; orphaned blobs are invisible to users and
+      // can be swept later. Do not fail the user's request over cleanup.
+      this.logger.warn(`Failed to delete ${keys.length} blob(s) from storage: ${String(error)}`);
+    }
   }
 
-  private assertParentFolder(dataroomId: string, parentId: string | null): void {
+  private async assertParentFolder(dataroomId: string, parentId: string | null): Promise<void> {
     if (parentId === null) return;
-    const parent = this.nodes.get(parentId);
+    const parent = await this.repository.findNode(parentId);
     if (!parent || parent.dataroomId !== dataroomId) {
       throw new NotFoundException('Parent folder not found');
     }
@@ -151,5 +256,40 @@ export class DataroomsService {
     const result = validateNodeName(raw);
     if (!result.ok) throw new BadRequestException(NAME_ERROR_MESSAGES[result.error]);
     return result.name;
+  }
+
+  private validateUpload(file: UploadedFilePayload | undefined): {
+    originalName: string;
+    size: number;
+    content: Buffer;
+    contentType: string;
+  } {
+    if (!file) throw new BadRequestException('A PDF file is required');
+    if (file.size <= 0) throw new BadRequestException('Uploaded file cannot be empty');
+    if (file.size > UPLOAD.maxFileSizeBytes) {
+      throw new PayloadTooLargeException(
+        `File cannot be larger than ${UPLOAD.maxFileSizeBytes} bytes`,
+      );
+    }
+
+    const acceptedMimeTypes: readonly string[] = UPLOAD.acceptedMimeTypes;
+    const acceptedExtensions: readonly string[] = UPLOAD.acceptedExtensions;
+    const lowerName = file.originalname.toLowerCase();
+    const hasAcceptedMime = acceptedMimeTypes.includes(file.mimetype);
+    const hasAcceptedExtension = acceptedExtensions.some((extension) =>
+      lowerName.endsWith(extension),
+    );
+    const hasPdfSignature = file.buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+
+    if (!hasAcceptedMime || !hasAcceptedExtension || !hasPdfSignature) {
+      throw new BadRequestException('Only PDF files are supported');
+    }
+
+    return {
+      originalName: file.originalname,
+      size: file.size,
+      content: file.buffer,
+      contentType: file.mimetype,
+    };
   }
 }

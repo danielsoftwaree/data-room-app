@@ -9,9 +9,10 @@ import {
 import { UPLOAD } from '@repo/config';
 import type { Dataroom, DataroomNode, FileNode, FolderNode } from '@repo/domain';
 import { createPdfBuffer } from '../../shared/test-utils';
+import type { BlobStorage, PutBlobInput, StoredBlob } from '../storage/blob-storage';
 import type { DataroomsRepository } from './datarooms.repository';
 import { DataroomsService } from './datarooms.service';
-import type { FileContentPayload, UploadedFilePayload } from './file-upload';
+import type { UploadedFilePayload } from './file-upload';
 
 interface CreateFolderInput {
   dataroomId: string;
@@ -19,21 +20,18 @@ interface CreateFolderInput {
   name: string;
 }
 
-interface CreateFileInput extends CreateFolderInput {
+interface CreateFileNodeInput extends CreateFolderInput {
   size: number;
-  content: Buffer;
-  contentType: string;
 }
 
 /**
- * In-memory stand-in for DataroomsRepository. Mirrors persistence semantics
- * (cascade delete, sibling lookups) without touching PostgreSQL, so the
- * service's business rules can be tested in milliseconds.
+ * In-memory stand-ins for DataroomsRepository and BlobStorage. They mirror
+ * persistence semantics (cascade delete, sibling lookups) without touching
+ * PostgreSQL or S3, so the service's business rules run in milliseconds.
  */
 class FakeDataroomsRepository {
+  readonly nodes = new Map<string, DataroomNode>();
   private readonly datarooms = new Map<string, Dataroom>();
-  private readonly nodes = new Map<string, DataroomNode>();
-  private readonly blobs = new Map<string, { content: Buffer; contentType: string }>();
   private seq = 0;
 
   private nextId(): string {
@@ -67,10 +65,7 @@ class FakeDataroomsRepository {
   async deleteDataroom(id: string): Promise<void> {
     this.datarooms.delete(id);
     for (const node of [...this.nodes.values()]) {
-      if (node.dataroomId === id) {
-        this.nodes.delete(node.id);
-        this.blobs.delete(node.id);
-      }
+      if (node.dataroomId === id) this.nodes.delete(node.id);
     }
   }
 
@@ -97,7 +92,7 @@ class FakeDataroomsRepository {
     return node;
   }
 
-  async createFile(input: CreateFileInput): Promise<FileNode> {
+  async createFileNode(input: CreateFileNodeInput): Promise<FileNode> {
     const now = Date.now();
     const node: FileNode = {
       id: this.nextId(),
@@ -110,7 +105,6 @@ class FakeDataroomsRepository {
       updatedAt: now,
     };
     this.nodes.set(node.id, node);
-    this.blobs.set(node.id, { content: input.content, contentType: input.contentType });
     return node;
   }
 
@@ -134,10 +128,7 @@ class FakeDataroomsRepository {
         }
       }
     }
-    for (const nodeId of doomed) {
-      this.nodes.delete(nodeId);
-      this.blobs.delete(nodeId);
-    }
+    for (const nodeId of doomed) this.nodes.delete(nodeId);
   }
 
   async siblingNames(
@@ -152,25 +143,38 @@ class FakeDataroomsRepository {
       )
       .map((node) => node.name);
   }
+}
 
-  async getFileContent(nodeId: string): Promise<FileContentPayload | undefined> {
-    const node = this.nodes.get(nodeId);
-    if (!node || node.type !== 'file') return undefined;
-    const blob = this.blobs.get(nodeId);
-    if (!blob) return undefined;
-    return {
-      name: node.name,
-      size: node.size,
-      content: blob.content,
-      contentType: blob.contentType,
-    };
+class FakeBlobStorage implements BlobStorage {
+  readonly blobs = new Map<string, StoredBlob>();
+  failNextPut = false;
+
+  async put(input: PutBlobInput): Promise<void> {
+    if (this.failNextPut) {
+      this.failNextPut = false;
+      throw new Error('storage unavailable');
+    }
+    this.blobs.set(input.key, { content: input.content, contentType: input.contentType });
+  }
+
+  async get(key: string): Promise<StoredBlob | undefined> {
+    return this.blobs.get(key);
+  }
+
+  async deleteMany(keys: string[]): Promise<void> {
+    for (const key of keys) this.blobs.delete(key);
   }
 }
 
-function setup(): { service: DataroomsService; repo: FakeDataroomsRepository } {
+function setup(): {
+  service: DataroomsService;
+  repo: FakeDataroomsRepository;
+  storage: FakeBlobStorage;
+} {
   const repo = new FakeDataroomsRepository();
-  const service = new DataroomsService(repo as unknown as DataroomsRepository);
-  return { service, repo };
+  const storage = new FakeBlobStorage();
+  const service = new DataroomsService(repo as unknown as DataroomsRepository, storage);
+  return { service, repo, storage };
 }
 
 function pdfUpload(
@@ -224,13 +228,15 @@ describe('datarooms', () => {
     expect(renamed.name).toBe('First');
   });
 
-  test('delete returns the ids of all contained nodes', async () => {
-    const { service } = setup();
+  test('delete returns contained node ids and removes their blobs', async () => {
+    const { service, storage } = setup();
     const dataroom = await service.createDataroom('Deal Docs');
     const folder = await service.createFolder(dataroom.id, null, 'Contracts');
-    await service.createFile(dataroom.id, folder.id, pdfUpload());
+    const file = await service.createFile(dataroom.id, folder.id, pdfUpload());
+    expect(storage.blobs.has(file.id)).toBe(true);
     const result = await service.deleteDataroom(dataroom.id);
     expect(result.deletedNodeIds).toHaveLength(2);
+    expect(storage.blobs.has(file.id)).toBe(false);
     await expect(service.getDataroom(dataroom.id)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
@@ -347,6 +353,17 @@ describe('file upload', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  test('rolls back the metadata row when blob storage fails', async () => {
+    const { service, repo, storage } = setup();
+    const dataroom = await service.createDataroom('Deal Docs');
+    storage.failNextPut = true;
+    await expect(service.createFile(dataroom.id, null, pdfUpload())).rejects.toThrow(
+      'storage unavailable',
+    );
+    expect([...repo.nodes.values()]).toHaveLength(0);
+    expect(storage.blobs.size).toBe(0);
+  });
+
   test('getFileContent throws 404 for folders and missing nodes', async () => {
     const { service } = setup();
     const dataroom = await service.createDataroom('Deal Docs');
@@ -369,14 +386,15 @@ describe('nodes', () => {
     expect(renamed.name).toBe('Final Drafts');
   });
 
-  test('delete returns the whole subtree ids', async () => {
-    const { service } = setup();
+  test('delete returns the whole subtree ids and removes file blobs', async () => {
+    const { service, storage } = setup();
     const dataroom = await service.createDataroom('Deal Docs');
     const root = await service.createFolder(dataroom.id, null, 'Contracts');
     const nested = await service.createFolder(dataroom.id, root.id, 'Signed');
     const file = await service.createFile(dataroom.id, nested.id, pdfUpload());
     const result = await service.deleteNode(root.id);
     expect([...result.deletedIds].sort()).toEqual([file.id, root.id, nested.id].sort());
+    expect(storage.blobs.has(file.id)).toBe(false);
     await expect(service.getFileContent(file.id)).rejects.toBeInstanceOf(NotFoundException);
   });
 

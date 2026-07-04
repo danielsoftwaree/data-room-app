@@ -37,7 +37,11 @@ export const datarooms = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   },
-  (table) => [uniqueIndex('datarooms_name_lower_unique').on(sql`lower(${table.name})`)],
+  (table) => [
+    // Names are unique per creator, not globally: one user's room name must not
+    // block another user (who cannot even see that room) from reusing it.
+    uniqueIndex('datarooms_owner_name_lower_unique').on(table.createdBy, sql`lower(${table.name})`),
+  ],
 );
 
 export const nodes = pgTable(

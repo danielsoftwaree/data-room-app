@@ -64,7 +64,7 @@ export class WorkspaceService {
     email?: string | null;
     color: string;
   }): Promise<User> {
-    const email = input.email?.trim() || `${input.id}@users.noreply`;
+    const email = input.email?.trim() || `${input.id}@acme.com`;
     const name = input.name?.trim() || email.split('@')[0] || 'User';
     return this.repository.upsertUser({ id: input.id, name, email, color: input.color });
   }

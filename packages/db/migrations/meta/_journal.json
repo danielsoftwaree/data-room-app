@@ -22,6 +22,20 @@
       "when": 1783164420168,
       "tag": "0002_quick_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0003_scope_dataroom_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783200600000,
+      "tag": "0004_clean_seed_data",
+      "breakpoints": true
     }
   ]
 }

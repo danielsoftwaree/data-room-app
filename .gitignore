@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.turbo/
+.promptql/
+.env
+.DS_Store
+*.local
+*.tsbuildinfo

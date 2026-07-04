@@ -1,0 +1,15 @@
+{
+  "name": "@repo/typescript-config",
+  "private": true,
+  "version": "0.0.0",
+  "exports": {
+    "./base": "./base.json",
+    "./base.json": "./base.json",
+    "./react": "./react.json",
+    "./react.json": "./react.json",
+    "./node": "./node.json",
+    "./node.json": "./node.json",
+    "./library": "./library.json",
+    "./library.json": "./library.json"
+  }
+}

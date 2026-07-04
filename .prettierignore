@@ -1,0 +1,8 @@
+node_modules
+dist
+.turbo
+.promptql
+bun.lock
+package-lock.json
+test-task.md
+vacancy_text.txt

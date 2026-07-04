@@ -1,0 +1,12 @@
+{
+  "name": "@repo/format-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./prettier.config.mjs"
+  },
+  "dependencies": {
+    "prettier": "^3.4.2"
+  }
+}

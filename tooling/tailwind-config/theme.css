@@ -1,0 +1,11 @@
+/* Shared design tokens (Tailwind v4 @theme).
+   apps/web imports this once Tailwind lands there:
+   @import '@repo/tailwind-config/theme.css'; */
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}

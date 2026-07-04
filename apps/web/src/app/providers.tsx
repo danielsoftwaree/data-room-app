@@ -1,15 +1,10 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  ClerkProvider,
-  SignedIn,
-  SignedOut,
-  SignIn,
-  useAuth,
-} from '@clerk/clerk-react';
+import { ClerkProvider, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
 import { TooltipProvider } from '@repo/ui/components/tooltip';
 import { setAuthTokenGetter } from '@repo/api-client';
+import { LandingScreen } from '../features/landing';
 
 const queryClient = new QueryClient();
 
@@ -42,9 +37,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
             <AuthTokenBridge>{children}</AuthTokenBridge>
           </SignedIn>
           <SignedOut>
-            <div className="flex min-h-screen items-center justify-center">
-              <SignIn routing="hash" />
-            </div>
+            <LandingScreen />
           </SignedOut>
         </TooltipProvider>
       </QueryClientProvider>

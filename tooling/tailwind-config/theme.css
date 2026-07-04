@@ -77,4 +77,31 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* --- Discord design system tokens (from docs/design-system/DESIGN-discord.md) --- */
+  --color-discord-primary: #5865f2;
+  --color-discord-on-primary: #ffffff;
+  --color-discord-green: #35ed7e;
+  --color-discord-magenta: #ec48bd;
+  --color-discord-link: #00b0f4;
+  --color-discord-canvas: #0a0d3a;
+  --color-discord-surface-indigo: #1e2353;
+  --color-discord-surface-onyx: #23272a;
+  --color-discord-surface-black: #000000;
+  --color-discord-ink: #ffffff;
+  --color-discord-ink-dark: #000000;
+  --color-discord-muted: #333333;
+  --color-discord-hairline: #23272a;
+
+  --radius-discord-xs: 6px;
+  --radius-discord-sm: 12px;
+  --radius-discord-md: 14px;
+  --radius-discord-lg: 16px;
+  --radius-discord-xl: 40px;
+  --radius-discord-pill: 50px;
+  --radius-discord-jumbo: 120px;
+  --radius-discord-full: 9999px;
+
+  --font-discord-display: 'ABC Ginto Nord', 'Arial Black', 'Helvetica Neue', system-ui, sans-serif;
+  --font-discord-body: 'ABC Ginto', ggsans, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }

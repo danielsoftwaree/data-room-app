@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/ca
 import { EmptyState } from '@repo/ui/components/empty-state';
 import { Input } from '@repo/ui/components/input';
 import { Skeleton } from '@repo/ui/components/skeleton';
+import { Link } from '@tanstack/react-router';
 
 /**
  * Temporary smoke screen proving the generated, typed API pipeline end to end:
@@ -36,14 +37,19 @@ export function DataroomsScreen() {
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Data Room</h1>
-        <span className="text-sm text-muted-foreground">
-          API:{' '}
-          {health.isPending
-            ? 'checking…'
-            : health.isError
-              ? 'unreachable'
-              : health.data.data.status}
-        </span>
+        <div className="flex items-center gap-4">
+          <Link to="/design-system" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+            Design system
+          </Link>
+          <span className="text-sm text-muted-foreground">
+            API:{' '}
+            {health.isPending
+              ? 'checking…'
+              : health.isError
+                ? 'unreachable'
+                : health.data.data.status}
+          </span>
+        </div>
       </header>
 
       <form

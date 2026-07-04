@@ -46,7 +46,10 @@ imports (HTTP/contracts boundary only), `packages/ui -> web modules`.
 - `@repo/domain`, `@repo/contracts`, `@repo/config` are compiled libraries (tsc -> `dist/`),
   so the Nest `tsc` build can consume them. Turbo orders builds via `dependsOn: ["^build"]`.
 - `@repo/ui` is a just-in-time package: it exports TSX source and is bundled by the
-  consuming app (Vite). Only `apps/web` consumes it.
+  consuming app (Vite). Only `apps/web` consumes it. It hosts the shadcn/ui design
+  system: the shadcn CLI vendors components into `src/components`, consumed via subpath
+  exports (`@repo/ui/components/*`); Tailwind v4 scans its sources via `@source` in
+  `src/styles/globals.css`.
 - `typecheck` depends on `^build` because apps typecheck against the emitted `.d.ts`
   of library packages.
 

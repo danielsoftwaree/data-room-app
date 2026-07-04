@@ -1,4 +1,9 @@
 {
   "extends": "@repo/typescript-config/react",
+  "compilerOptions": {
+    "paths": {
+      "@repo/ui/*": ["./src/*"]
+    }
+  },
   "include": ["src"]
 }

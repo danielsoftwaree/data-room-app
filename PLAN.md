@@ -63,7 +63,7 @@ CRUD и списки). Ниже — что стоит за каждым пунк
 
 Монорепозиторий: **Bun workspaces + Turborepo** (см. `docs/monorepo.md`).
 
-- **apps/web** — Vite + React 18 + TypeScript, прокси `/api` → `:3000`. Здесь живёт весь Data Room UX.
+- **apps/web** — Vite 8 + React 19 + TypeScript 6, прокси `/api` → `:3000`. Здесь живёт весь Data Room UX.
 - **apps/api** — NestJS: реальные CRUD-эндпоинты (датарумы, папки, узлы) на in-memory store,
   бизнес-правила берёт из `@repo/domain`, Swagger UI на `/api/docs`, эмиссия `openapi.json`
   без старта сервера. Хранилище: **PostgreSQL + Drizzle ORM** (см. раздел «База данных» ниже); до этого — in-memory store, осознанно оформленный как репозиторий, поэтому замена локальна.
@@ -73,14 +73,15 @@ CRUD и списки). Ниже — что стоит за каждым пунк
   `openapi.json` → Orval → TanStack Query хуки + fetch-мутатор с `ApiError`. Генерат в git не
   коммитится, воспроизводится `bun run generate`; turbo-граф: `api#openapi` →
   `api-client#generate` → `web#build`.
-- **packages/ui** — примитивы дизайн-системы (Button, EmptyState), без бизнес-логики.
+- **packages/ui** — дизайн-система: shadcn/ui на Tailwind v4 (button, input, label, card, dialog, alert-dialog, dropdown-menu, breadcrumb, tooltip, separator, skeleton + свой empty-state), `cn()` в `src/lib/utils.ts`, глобальный stylesheet `src/styles/globals.css`; subpath-экспорты `@repo/ui/components/*`; без бизнес-логики.
 - **packages/config** — глобальные константы (лимиты загрузки, API prefix).
 - **tooling/** — общие конфиги как workspace-пакеты: `@repo/typescript-config`, `@repo/lint-config`,
-  `@repo/format-config`, `@repo/tailwind-config` (design-токены `@theme`).
+  `@repo/format-config`, `@repo/tailwind-config` (shadcn design-токены: `:root`/`.dark` + `@theme inline`).
 - Качество: turbo task graph (build/typecheck), root ESLint + Prettier — всё зелёное.
 
-Ещё не подключено (следующие шаги): **Tailwind + shadcn/ui**, **роутер** (URL отражает текущую
-папку). TanStack Query уже подключён через генерируемые хуки `@repo/api-client`. Решение по данным
+Подключено: **Tailwind v4 + shadcn/ui** — дизайн-система в `packages/ui`, токены в
+`tooling/tailwind-config/theme.css`. Ещё не подключено (следующие шаги): **роутер**
+(URL отражает текущую папку). TanStack Query уже подключён через генерируемые хуки `@repo/api-client`. Решение по данным
 изменилось дважды: Dexie/IndexedDB → реальный API с in-memory store → **PostgreSQL + Drizzle ORM** (см. раздел «База данных»);
 PDF-блобы — bytea в Postgres (таблица `file_blobs`), добавим на этапе файлов.
 
@@ -243,7 +244,7 @@ SPEC.md обновляем синхронно с этим планом.
 
 1. ✅ **Скелет** — сделано шире плана: монорепа Bun + Turborepo, apps/web + apps/api,
    packages (domain/contracts/ui/config), tooling-конфиги, lint/format, docs.
-   Осталось из скелета: Tailwind + shadcn в apps/web, роутер.
+   Осталось из скелета: роутер (Tailwind v4 + shadcn/ui подключены).
 2. ✅ **Data layer (API + клиент)** — реальный NestJS CRUD поверх правил `@repo/domain`
    и генерируемый типизированный клиент (swagger → openapi.json → Orval → TanStack Query
    хуки). Смоук-экран в web уже ходит через них. Внедрение Orval сверено с официальным

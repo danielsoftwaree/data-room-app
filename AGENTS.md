@@ -19,14 +19,14 @@
 - Main language/runtime: TypeScript everywhere. Node 22 for `apps/api`, browser (Vite) for `apps/web`.
 - Package manager: Bun (`bun@1.3.6`, Bun workspaces). Always `bun install`, `bun run <script>`, `bunx` — never npm/yarn/pnpm.
 - Task runner: Turborepo (`turbo.json`). Root scripts fan out through turbo with a dependency graph.
-- Frameworks: React 18 + Vite (web), NestJS 10 + @nestjs/swagger (api), TanStack Query v5 via generated hooks, Orval v7 for client generation.
+- Frameworks: React 19 + Vite 8 (web), NestJS 11 + @nestjs/swagger (api), TanStack Query v5 via generated hooks, Orval v8 for client generation, TypeScript 6, Tailwind CSS v4 + shadcn/ui.
 - Apps/packages:
   - `apps/web` — React SPA, the product. Consumes `@repo/api-client`, `@repo/ui`, `@repo/domain`, `@repo/config`.
   - `apps/api` — NestJS CRUD API (in-memory store shaped like a repository). Swagger UI at `/api/docs`.
   - `packages/domain` — pure domain model + business rules (naming, duplicates, cascade). No React/Nest/browser/storage imports. The cleanest package in the repo.
   - `packages/contracts` — authored DTO interfaces (web↔api contract surface). `apps/api` DTO classes implement them.
   - `packages/api-client` — GENERATED Orval client (react-query hooks + fetch mutator). `src/generated/**` is not committed.
-  - `packages/ui` — design-system primitives only, no business logic.
+  - `packages/ui` — the design system: shadcn/ui components on Tailwind v4 (`src/components/*`), `cn()` in `src/lib/utils.ts`, global stylesheet `src/styles/globals.css`. Subpath exports only (`@repo/ui/components/*`, `@repo/ui/lib/*`, `@repo/ui/globals.css`) — no barrel, no business logic.
   - `packages/config` — app-agnostic constants (API prefix, upload limits).
   - `tooling/*` — shared configs as workspace packages (`@repo/typescript-config`, `@repo/lint-config`, `@repo/format-config`, `@repo/tailwind-config`).
 - Entry points: `apps/web/src/main.tsx`, `apps/api/src/main.ts` (HTTP :3000), `apps/api/src/openapi.ts` (emits `openapi.json`, no listener).
@@ -92,7 +92,7 @@ Dependency direction is one-way (full rules in `docs/monorepo.md`):
 - Invalidate queries with generated key helpers (`getListDataroomsQueryKey()` etc.) after mutations.
 - Handle all four states wherever data is fetched: loading, error, empty, success. Empty states get a CTA — this repo is judged on UX first.
 - Reuse `packages/ui` primitives before creating new ones.
-- Styling: Tailwind + shadcn/ui are the planned system (tokens in `tooling/tailwind-config/theme.css`); design references live in `docs/design-system/`. Until Tailwind lands, do not introduce ad-hoc styling approaches beyond what exists.
+- Styling: Tailwind CSS v4 + shadcn/ui, live. Design tokens (shadcn `:root`/`.dark` variables + `@theme inline`) live in `tooling/tailwind-config/theme.css`; `apps/web/src/main.tsx` imports `@repo/ui/globals.css` once. Add components with `cd packages/ui && bunx shadcn@latest add <component>`; design references live in `docs/design-system/`. No inline `style={{}}` and no ad-hoc CSS files — Tailwind classes + `cn()` only.
 - Destructive actions (delete folder with contents) require confirmation with an impact summary ("will delete N folders and M files" — use `collectSubtreeIds`).
 
 ## Backend

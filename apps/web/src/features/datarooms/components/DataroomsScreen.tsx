@@ -7,6 +7,11 @@ import {
   useGetHealth,
   useListDatarooms,
 } from '@repo/api-client';
+import { Button } from '@repo/ui/components/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/card';
+import { EmptyState } from '@repo/ui/components/empty-state';
+import { Input } from '@repo/ui/components/input';
+import { Skeleton } from '@repo/ui/components/skeleton';
 
 /**
  * Temporary smoke screen proving the generated, typed API pipeline end to end:
@@ -28,46 +33,68 @@ export function DataroomsScreen() {
   });
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24, maxWidth: 640 }}>
-      <h1>Data Room</h1>
-      <p>
-        API health:{' '}
-        {health.isPending ? 'checking…' : health.isError ? 'unreachable' : health.data.data.status}
-      </p>
+    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Data Room</h1>
+        <span className="text-sm text-muted-foreground">
+          API:{' '}
+          {health.isPending
+            ? 'checking…'
+            : health.isError
+              ? 'unreachable'
+              : health.data.data.status}
+        </span>
+      </header>
 
       <form
+        className="flex gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim().length === 0) return;
           createDataroom.mutate({ data: { name } });
         }}
       >
-        <input
+        <Input
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="New data room name"
           aria-label="New data room name"
         />
-        <button type="submit" disabled={createDataroom.isPending}>
+        <Button type="submit" disabled={createDataroom.isPending}>
           Create
-        </button>
+        </Button>
       </form>
       {createDataroom.isError ? (
-        <p role="alert" style={{ color: 'crimson' }}>
+        <p role="alert" className="text-sm text-destructive">
           {getApiErrorMessage(createDataroom.error)}
         </p>
       ) : null}
 
       {datarooms.isPending ? (
-        <p>Loading data rooms…</p>
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       ) : datarooms.isError ? (
-        <p role="alert">Failed to load data rooms</p>
+        <p role="alert" className="text-sm text-destructive">
+          Failed to load data rooms
+        </p>
       ) : datarooms.data.data.length === 0 ? (
-        <p>No data rooms yet.</p>
+        <EmptyState
+          title="No data rooms yet"
+          description="Create your first data room to get started."
+        />
       ) : (
-        <ul>
+        <ul className="flex flex-col gap-2">
           {datarooms.data.data.map((dataroom) => (
-            <li key={dataroom.id}>{dataroom.name}</li>
+            <li key={dataroom.id}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{dataroom.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">{dataroom.id}</CardContent>
+              </Card>
+            </li>
           ))}
         </ul>
       )}

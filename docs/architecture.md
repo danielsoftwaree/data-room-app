@@ -18,7 +18,9 @@ for the workspace layout.
   api DTO classes implement them.
 - `@repo/api-client` - generated (Orval) typed client + react-query hooks;
   never edited by hand.
-- `@repo/ui` - design-system primitives, business-logic free.
+- `@repo/ui` - the design system: shadcn/ui components on Tailwind v4, business-logic
+  free. Tokens live in `@repo/tailwind-config` (`theme.css`); the app imports
+  `@repo/ui/globals.css` once in `main.tsx`.
 - `@repo/config` - truly global constants (upload limits, accepted types, API prefix).
 
 ## Vertical feature modules
@@ -65,3 +67,6 @@ single public entry (`index.ts`); cross-feature imports go through it.
 4. **Vertical feature modules in both apps**: code is grouped by capability, so a
    feature can be added, understood and deleted as one unit.
 5. **Tooling as workspace packages**: one source of truth for TS/lint/format settings.
+6. **shadcn components are vendored, not installed**: the shadcn CLI writes sources into
+   `packages/ui/src/components`, so components are owned and themeable via the shared
+   tokens in `tooling/tailwind-config/theme.css`, and any future app reuses them.

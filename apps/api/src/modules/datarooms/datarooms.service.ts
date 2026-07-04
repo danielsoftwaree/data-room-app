@@ -44,8 +44,9 @@ const NAME_ERROR_MESSAGES: Record<NameValidationError, string> = {
 export class DataroomsService {
   private readonly logger = new Logger(DataroomsService.name);
 
+  // Explicit @Inject: Bun's transpiler cannot emit class types into design:paramtypes.
   constructor(
-    private readonly repository: DataroomsRepository,
+    @Inject(DataroomsRepository) private readonly repository: DataroomsRepository,
     @Inject(BLOB_STORAGE) private readonly storage: BlobStorage,
   ) {}
 
@@ -252,7 +253,11 @@ export class DataroomsService {
     }
   }
 
-  private validateName(raw: string): string {
+  private validateName(raw: unknown): string {
+    // Defense in depth: the ValidationPipe normally rejects non-strings, but the
+    // service must not 500 if a non-string slips through (e.g. alternative runtimes
+    // where decorator metadata is unavailable).
+    if (typeof raw !== 'string') throw new BadRequestException('Name must be a string');
     const result = validateNodeName(raw);
     if (!result.ok) throw new BadRequestException(NAME_ERROR_MESSAGES[result.error]);
     return result.name;

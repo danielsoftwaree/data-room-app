@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.23",
+    "@nestjs/testing": "^11.1.27",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.20.0",
     "@types/pg": "8.15.6",

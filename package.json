@@ -15,6 +15,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "generate": "turbo run generate",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",

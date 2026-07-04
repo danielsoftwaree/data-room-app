@@ -24,23 +24,34 @@ function AuthTokenBridge({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Global app providers (server-state cache, auth, tooltips). */
+/**
+ * Global app providers (server-state cache, auth, tooltips).
+ *
+ * Auth is optional. With a Clerk publishable key we gate the app behind
+ * sign-in and show the marketing landing to signed-out visitors. WITHOUT a key
+ * the app runs in zero-friction demo mode (MSW mocks + the identity switcher) —
+ * no login wall, so an evaluator sees the product immediately.
+ */
 export function AppProviders({ children }: { children: ReactNode }) {
-  if (!publishableKey) {
-    throw new Error('VITE_CLERK_PUBLISHABLE_KEY is not set');
-  }
-  return (
-    <ClerkProvider publishableKey={publishableKey}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <SignedIn>
-            <AuthTokenBridge>{children}</AuthTokenBridge>
-          </SignedIn>
-          <SignedOut>
-            <LandingScreen />
-          </SignedOut>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
+  const inner = (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        {publishableKey ? (
+          <>
+            <SignedIn>
+              <AuthTokenBridge>{children}</AuthTokenBridge>
+            </SignedIn>
+            <SignedOut>
+              <LandingScreen />
+            </SignedOut>
+          </>
+        ) : (
+          children
+        )}
+      </TooltipProvider>
+    </QueryClientProvider>
   );
+
+  if (!publishableKey) return inner;
+  return <ClerkProvider publishableKey={publishableKey}>{inner}</ClerkProvider>;
 }

@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { verifyToken } from '@clerk/backend';
-import type { Request } from 'express';
 import { EnvService } from '../../config/env';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
@@ -31,7 +30,9 @@ export class ClerkAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<Request & { userId?: string }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, string | undefined>; userId?: string }>();
     const token = extractBearerToken(request.headers.authorization);
     if (!token) throw new UnauthorizedException('Missing bearer token');
 

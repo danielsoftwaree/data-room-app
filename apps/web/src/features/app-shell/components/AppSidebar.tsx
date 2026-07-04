@@ -10,11 +10,25 @@ import type { FavoriteDto } from '@repo/api-client';
 import { Badge } from '@repo/ui/components/badge';
 import { Button } from '@repo/ui/components/button';
 import { Progress } from '@repo/ui/components/progress';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from '@repo/ui/components/sheet';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon, VaultIcon } from '@phosphor-icons/react';
-import { HardDriveIcon, LayoutGridIcon, PlusIcon, StarIcon, Trash2Icon } from 'lucide-react';
-import { useState } from 'react';
+import {
+  HardDriveIcon,
+  LayoutGridIcon,
+  MenuIcon,
+  PlusIcon,
+  StarIcon,
+  Trash2Icon,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { NameDialog } from '../../../shared/NameDialog';
 import { UserMenu } from '../../../shared/UserMenu';
 import { formatFileSize } from '../../../shared/format';
@@ -36,7 +50,69 @@ const NAV_ITEMS: readonly NavItem[] = [
 
 const FAVORITES_PREVIEW = 6;
 
+/**
+ * App navigation. Renders as a fixed rail on desktop (lg+) and as a hamburger
+ * that opens an off-canvas drawer on mobile. The nav body is shared between
+ * both via {@link SidebarBody}; `onNavigate` lets the mobile drawer close
+ * itself when the user picks a destination.
+ */
 export function AppSidebar() {
+  return (
+    <>
+      <MobileTopBar />
+      <aside className="sticky top-0 z-20 hidden h-screen w-[248px] shrink-0 flex-col border-r bg-card lg:flex">
+        <SidebarBody />
+      </aside>
+    </>
+  );
+}
+
+function MobileTopBar() {
+  const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  // Close the drawer on any route change (covers favorite links, back/forward, etc.).
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-card px-3 lg:hidden">
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Open menu">
+            <MenuIcon className="size-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-[280px] p-0" showCloseButton={false}>
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetDescription className="sr-only">
+            Data rooms, favorites, trash and account
+          </SheetDescription>
+          <SidebarBody onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <Link to="/" className="flex items-center gap-2">
+        <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+          <VaultIcon weight="fill" className="size-4" />
+        </span>
+        <span className="font-display text-base font-extrabold tracking-tight">Data Room</span>
+      </Link>
+
+      <div className="ml-auto">
+        <UserMenu compact />
+      </div>
+    </header>
+  );
+}
+
+/**
+ * Shared navigation content used by both the desktop rail and the mobile
+ * drawer. `onNavigate` is invoked when the user triggers navigation so the
+ * mobile drawer can close; on desktop it is a no-op.
+ */
+function SidebarBody({ onNavigate }: Readonly<{ onNavigate?: () => void }>) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
   const datarooms = useListDatarooms();
@@ -54,8 +130,8 @@ export function AppSidebar() {
     : 0;
 
   return (
-    <aside className="sticky top-0 z-20 flex max-h-[28rem] w-full shrink-0 flex-col border-b bg-card lg:h-screen lg:max-h-none lg:w-[248px] lg:border-r lg:border-b-0">
-      <Link to="/" className="flex h-16 items-center gap-3 border-b px-5">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Link to="/" onClick={onNavigate} className="flex h-16 items-center gap-3 border-b px-5">
         <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
           <VaultIcon weight="fill" className="size-5" />
         </span>
@@ -82,6 +158,7 @@ export function AppSidebar() {
               <Link
                 key={item.label}
                 to={item.to}
+                onClick={onNavigate}
                 className={cn(
                   'flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
                   active
@@ -117,11 +194,16 @@ export function AppSidebar() {
                 {favorites.data.data
                   .slice(0, FAVORITES_PREVIEW)
                   .map((favorite) => (
-                    <FavoriteLink key={favoriteKey(favorite)} favorite={favorite} />
+                    <FavoriteLink
+                      key={favoriteKey(favorite)}
+                      favorite={favorite}
+                      onNavigate={onNavigate}
+                    />
                   ))}
                 {favorites.data.data.length > FAVORITES_PREVIEW ? (
                   <Link
                     to="/favorites"
+                    onClick={onNavigate}
                     className="px-2 py-1.5 text-xs font-medium text-primary hover:underline"
                   >
                     View all {favorites.data.data.length}
@@ -169,6 +251,7 @@ export function AppSidebar() {
             {
               onSuccess: (response) => {
                 setCreateOpen(false);
+                onNavigate?.();
                 void navigate({
                   to: '/datarooms/$dataroomId',
                   params: { dataroomId: response.data.id },
@@ -178,11 +261,14 @@ export function AppSidebar() {
           )
         }
       />
-    </aside>
+    </div>
   );
 }
 
-function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
+function FavoriteLink({
+  favorite,
+  onNavigate,
+}: Readonly<{ favorite: FavoriteDto; onNavigate?: () => void }>) {
   const label = favorite.nodeName ?? favorite.dataroomName;
   const Icon =
     favorite.nodeId === null
@@ -197,6 +283,7 @@ function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
       <Link
         to="/datarooms/$dataroomId/folders/$folderId"
         params={{ dataroomId: favorite.dataroomId, folderId: favorite.nodeId }}
+        onClick={onNavigate}
         className={className}
       >
         <Icon className="size-4" />
@@ -213,6 +300,7 @@ function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
         to="/datarooms/$dataroomId/folders/$folderId"
         params={{ dataroomId: favorite.dataroomId, folderId: favorite.parentId }}
         search={select}
+        onClick={onNavigate}
         className={className}
       >
         <Icon weight="fill" className="size-4" />
@@ -225,6 +313,7 @@ function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
       to="/datarooms/$dataroomId"
       params={{ dataroomId: favorite.dataroomId }}
       search={select}
+      onClick={onNavigate}
       className={className}
     >
       <Icon weight="fill" className="size-4" />

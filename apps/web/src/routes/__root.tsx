@@ -11,7 +11,7 @@ function RootLayout() {
   return (
     <>
       <Outlet />
-      <Toaster position="bottom-right" richColors closeButton theme={isDark ? 'dark' : 'light'} />
+      <Toaster position="top-center" richColors closeButton theme={isDark ? 'dark' : 'light'} />
     </>
   );
 }

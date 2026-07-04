@@ -34,8 +34,8 @@ test('uploads, views, renames, rejects non-PDF, suffixes duplicates, and deletes
 
     await renameRowViaUi(page, 'report.pdf', 'renamed.pdf');
     await page.getByLabel('Actions for renamed.pdf').click();
+    // Deleting moves the file to the trash immediately - no confirm dialog.
     await page.getByRole('menuitem', { name: 'Delete' }).click();
-    await page.getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByText('renamed.pdf').first()).toBeHidden();
   } finally {
     await deleteDataroom(request, dataroom.id);

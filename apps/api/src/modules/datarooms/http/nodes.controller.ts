@@ -63,6 +63,27 @@ export class NodesController {
     return this.service.deleteNode(id, userId);
   }
 
+  @Post(':id/restore')
+  @HttpCode(200)
+  @ApiOkResponse({ type: NodeDto })
+  async restoreNode(
+    @Param('id') id: string,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<NodeDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.service.restoreNode(id, userId);
+  }
+
+  @Delete(':id/purge')
+  @ApiOkResponse({ type: DeleteNodeResultDto })
+  async purgeNode(
+    @Param('id') id: string,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DeleteNodeResultDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.service.purgeNode(id, userId);
+  }
+
   @Get(':id/content')
   @ApiProduces('application/pdf')
   @ApiOkResponse({
@@ -75,8 +96,10 @@ export class NodesController {
   async getNodeContent(
     @Param('id') id: string,
     @Res({ passthrough: true }) response: HeaderResponse,
+    @Headers('x-user-id') rawUserId?: string | string[],
   ): Promise<StreamableFile> {
-    const file = await this.service.getFileContent(id);
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    const file = await this.service.getFileContent(id, userId);
     response.setHeader('Content-Type', file.contentType);
     response.setHeader('Content-Length', file.size);
     response.setHeader('Content-Disposition', contentDispositionInline(file.name));

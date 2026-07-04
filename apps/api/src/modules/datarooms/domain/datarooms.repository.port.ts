@@ -1,4 +1,4 @@
-import type { Dataroom, DataroomNode, FileNode, FolderNode } from '@repo/domain';
+import type { Dataroom, DataroomNode, FileNode, FolderNode, MemberRole, User } from '@repo/domain';
 
 export interface CreateFolderInput {
   dataroomId: string;
@@ -20,21 +20,42 @@ export interface MoveNodeInput {
 
 export interface ListNodesOptions {
   nameContains?: string;
+  /** Include trashed nodes. Off by default — every normal listing hides trash. */
+  includeDeleted?: boolean;
+}
+
+/** A data room the caller belongs to, tagged with their role in it. */
+export interface DataroomForUser extends Dataroom {
+  myRole: MemberRole;
+}
+
+/** Per-room aggregates for the dashboard, resolved without a query per room. */
+export interface DataroomMeta {
+  memberCount: number;
+  owner: User | null;
 }
 
 export interface DataroomsRepository {
-  listDatarooms(): Promise<Dataroom[]>;
+  listDataroomsForUser(userId: string): Promise<DataroomForUser[]>;
+  dataroomMeta(dataroomIds: readonly string[]): Promise<Map<string, DataroomMeta>>;
   createDataroom(name: string, userId: string): Promise<Dataroom>;
   findDataroom(id: string): Promise<Dataroom | undefined>;
   renameDataroom(id: string, name: string, userId: string): Promise<Dataroom | undefined>;
   deleteDataroom(id: string): Promise<void>;
   listNodes(dataroomId: string, options?: ListNodesOptions): Promise<DataroomNode[]>;
+  /** Trashed nodes across the given rooms (for the global trash view). */
+  listDeletedNodes(dataroomIds: readonly string[]): Promise<DataroomNode[]>;
   findNode(id: string): Promise<DataroomNode | undefined>;
   createFolder(input: CreateFolderInput): Promise<FolderNode>;
   createFileNode(input: CreateFileNodeInput): Promise<FileNode>;
   renameNode(id: string, name: string, userId: string): Promise<DataroomNode | undefined>;
   moveNode(input: MoveNodeInput): Promise<DataroomNode | undefined>;
+  /** Hard delete a node and its descendants (DB cascade). Used to purge from trash. */
   deleteNode(id: string): Promise<void>;
+  /** Soft delete: stamp deleted_at/deleted_by on the given ids. */
+  setNodesDeleted(ids: readonly string[], deletedBy: string): Promise<void>;
+  /** Clear deleted_at/deleted_by on the given ids. */
+  restoreNodes(ids: readonly string[]): Promise<void>;
   siblingNames(dataroomId: string, parentId: string | null, excludeId?: string): Promise<string[]>;
 }
 

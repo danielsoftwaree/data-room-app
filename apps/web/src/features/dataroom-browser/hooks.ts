@@ -8,6 +8,7 @@ import {
   useDeleteNode as useDeleteNodeBase,
   useMoveNode as useMoveNodeBase,
   useRenameNode as useRenameNodeBase,
+  useRestoreNode as useRestoreNodeBase,
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
 
@@ -48,12 +49,23 @@ export function useNodeMutations(dataroomId: string) {
     },
   });
 
+  const restoreNode = useRestoreNodeBase({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Restored');
+        invalidate();
+      },
+      onError: (error) => toast.error(getApiErrorMessage(error)),
+    },
+  });
+
   const deleteNode = useDeleteNodeBase({
     mutation: {
-      onSuccess: (response) => {
-        toast.success(
-          response.data.deletedIds.length > 1 ? 'Deleted folder and its contents' : 'Deleted',
-        );
+      // Trash is reversible, so the toast offers a one-click Undo (restore).
+      onSuccess: (_response, variables) => {
+        toast.success('Moved to trash', {
+          action: { label: 'Undo', onClick: () => restoreNode.mutate({ id: variables.id }) },
+        });
         invalidate();
       },
       onError: (error) => toast.error(getApiErrorMessage(error)),
@@ -70,5 +82,5 @@ export function useNodeMutations(dataroomId: string) {
     },
   });
 
-  return { createFolder, createFile, renameNode, deleteNode, moveNode };
+  return { createFolder, createFile, renameNode, deleteNode, moveNode, restoreNode };
 }

@@ -1,7 +1,16 @@
-import type { Dataroom, DataroomNode, FileNode, FolderNode, User } from '@repo/domain';
+import type {
+  Dataroom,
+  DataroomNode,
+  FileNode,
+  FolderNode,
+  MemberRole,
+  User,
+} from '@repo/domain';
 import type {
   CreateFileNodeInput,
   CreateFolderInput,
+  DataroomForUser,
+  DataroomMeta,
   DataroomsRepository,
   ListNodesOptions,
   MoveNodeInput,
@@ -36,9 +45,18 @@ export const DEMO_USERS: User[] = [
  * semantics of the real repository (unique names per level enforced upstream,
  * cascade deletes) without requiring PostgreSQL or S3.
  */
+interface MemberEntry {
+  dataroomId: string;
+  userId: string;
+  role: MemberRole;
+  addedAt: number;
+}
+
 export class FakeDataroomsRepository implements DataroomsRepository {
   private readonly datarooms = new Map<string, Dataroom>();
   private readonly nodes = new Map<string, DataroomNode>();
+  /** Membership lives here so both fakes agree, mirroring the real DB joins. */
+  readonly members: MemberEntry[] = [];
   private seq = 0;
 
   private nextId(): string {
@@ -46,8 +64,57 @@ export class FakeDataroomsRepository implements DataroomsRepository {
     return `00000000-0000-4000-8000-${String(this.seq).padStart(12, '0')}`;
   }
 
-  async listDatarooms(): Promise<Dataroom[]> {
-    return [...this.datarooms.values()];
+  private userById(id: string): User {
+    return DEMO_USERS.find((user) => user.id === id) ?? DEMO_USERS[0];
+  }
+
+  roleOf(dataroomId: string, userId: string): MemberRole | null {
+    return this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null;
+  }
+
+  addMemberEntry(dataroomId: string, userId: string, role: MemberRole): MemberEntry {
+    const existing = this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId);
+    if (existing) return existing;
+    const entry: MemberEntry = { dataroomId, userId, role, addedAt: Date.now() + this.members.length };
+    this.members.push(entry);
+    return entry;
+  }
+
+  updateMemberEntry(dataroomId: string, userId: string, role: MemberRole): MemberEntry | undefined {
+    const entry = this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId);
+    if (entry) entry.role = role;
+    return entry;
+  }
+
+  removeMemberEntry(dataroomId: string, userId: string): void {
+    const index = this.members.findIndex((m) => m.dataroomId === dataroomId && m.userId === userId);
+    if (index >= 0) this.members.splice(index, 1);
+  }
+
+  memberEntriesFor(dataroomId: string): MemberEntry[] {
+    return this.members.filter((m) => m.dataroomId === dataroomId);
+  }
+
+  async listDataroomsForUser(userId: string): Promise<DataroomForUser[]> {
+    return [...this.datarooms.values()]
+      .map((room) => {
+        const role = this.roleOf(room.id, userId);
+        return role ? { ...room, myRole: role } : null;
+      })
+      .filter((room): room is DataroomForUser => room !== null);
+  }
+
+  async dataroomMeta(dataroomIds: readonly string[]): Promise<Map<string, DataroomMeta>> {
+    const meta = new Map<string, DataroomMeta>();
+    for (const id of dataroomIds) {
+      const entries = this.memberEntriesFor(id);
+      const owner = entries.filter((m) => m.role === 'owner').sort((a, b) => a.addedAt - b.addedAt)[0];
+      meta.set(id, {
+        memberCount: entries.length,
+        owner: owner ? this.userById(owner.userId) : null,
+      });
+    }
+    return meta;
   }
 
   async createDataroom(name: string, userId: string): Promise<Dataroom> {
@@ -83,13 +150,26 @@ export class FakeDataroomsRepository implements DataroomsRepository {
     for (const node of [...this.nodes.values()]) {
       if (node.dataroomId === id) this.nodes.delete(node.id);
     }
+    // Membership cascades with the room, as the DB foreign key does.
+    for (let i = this.members.length - 1; i >= 0; i--) {
+      if (this.members[i].dataroomId === id) this.members.splice(i, 1);
+    }
   }
 
   async listNodes(dataroomId: string, options?: ListNodesOptions): Promise<DataroomNode[]> {
     const term = options?.nameContains?.toLocaleLowerCase();
     return [...this.nodes.values()].filter(
       (node) =>
-        node.dataroomId === dataroomId && (!term || node.name.toLocaleLowerCase().includes(term)),
+        node.dataroomId === dataroomId &&
+        (options?.includeDeleted || node.deletedAt === null) &&
+        (!term || node.name.toLocaleLowerCase().includes(term)),
+    );
+  }
+
+  async listDeletedNodes(dataroomIds: readonly string[]): Promise<DataroomNode[]> {
+    const ids = new Set(dataroomIds);
+    return [...this.nodes.values()].filter(
+      (node) => ids.has(node.dataroomId) && node.deletedAt !== null,
     );
   }
 
@@ -110,6 +190,8 @@ export class FakeDataroomsRepository implements DataroomsRepository {
       updatedAt: now,
       createdBy: input.userId,
       updatedBy: input.userId,
+      deletedAt: null,
+      deletedBy: null,
     };
     this.nodes.set(node.id, node);
     return node;
@@ -129,6 +211,8 @@ export class FakeDataroomsRepository implements DataroomsRepository {
       updatedAt: now,
       createdBy: input.userId,
       updatedBy: input.userId,
+      deletedAt: null,
+      deletedBy: null,
     };
     this.nodes.set(node.id, node);
     return node;
@@ -173,6 +257,21 @@ export class FakeDataroomsRepository implements DataroomsRepository {
     for (const nodeId of doomed) this.nodes.delete(nodeId);
   }
 
+  async setNodesDeleted(ids: readonly string[], deletedBy: string): Promise<void> {
+    const now = Date.now();
+    for (const id of ids) {
+      const node = this.nodes.get(id);
+      if (node) this.nodes.set(id, { ...node, deletedAt: now, deletedBy });
+    }
+  }
+
+  async restoreNodes(ids: readonly string[]): Promise<void> {
+    for (const id of ids) {
+      const node = this.nodes.get(id);
+      if (node) this.nodes.set(id, { ...node, deletedAt: null, deletedBy: null });
+    }
+  }
+
   async siblingNames(
     dataroomId: string,
     parentId: string | null,
@@ -181,7 +280,10 @@ export class FakeDataroomsRepository implements DataroomsRepository {
     return [...this.nodes.values()]
       .filter(
         (node) =>
-          node.dataroomId === dataroomId && node.parentId === parentId && node.id !== excludeId,
+          node.dataroomId === dataroomId &&
+          node.parentId === parentId &&
+          node.deletedAt === null &&
+          node.id !== excludeId,
       )
       .map((node) => node.name);
   }
@@ -195,7 +297,8 @@ export class FakeDataroomsRepository implements DataroomsRepository {
   }
 
   nodeBelongsToDataroom(nodeId: string, dataroomId: string): boolean {
-    return this.nodes.get(nodeId)?.dataroomId === dataroomId;
+    const node = this.nodes.get(nodeId);
+    return node?.dataroomId === dataroomId && node.deletedAt === null;
   }
 
   findNodeForWorkspace(nodeId: string): DataroomNode | undefined {
@@ -227,6 +330,7 @@ export class FakeDataroomsRepository implements DataroomsRepository {
         node.id !== excludeId &&
         node.dataroomId === dataroomId &&
         node.parentId === parentId &&
+        node.deletedAt === null &&
         namesEqual(node.name, name),
     );
     if (taken) throw uniqueViolation();
@@ -250,7 +354,6 @@ export class FakeBlobStorage implements BlobStorage {
 }
 
 export class FakeWorkspaceRepository implements WorkspaceRepository {
-  private readonly members: MemberRecord[] = [];
   private readonly favorites: { userId: string; target: FavoriteTarget; createdAt: number }[] = [];
   private readonly activities: ActivityRecord[] = [];
   private seq = 0;
@@ -278,38 +381,55 @@ export class FakeWorkspaceRepository implements WorkspaceRepository {
   }
 
   async listMembers(dataroomId: string): Promise<MemberRecord[]> {
-    return this.members.filter((member) => member.dataroomId === dataroomId);
+    return this.datarooms.memberEntriesFor(dataroomId).map((entry) => this.toMemberRecord(entry));
   }
 
-  async addMember(
-    dataroomId: string,
-    userId: string,
-    role: 'owner' | 'editor' | 'viewer',
-  ): Promise<MemberRecord> {
+  async findMemberRole(dataroomId: string, userId: string): Promise<MemberRole | null> {
+    return this.datarooms.roleOf(dataroomId, userId);
+  }
+
+  async countOwners(dataroomId: string): Promise<number> {
+    return this.datarooms.memberEntriesFor(dataroomId).filter((m) => m.role === 'owner').length;
+  }
+
+  async addMember(dataroomId: string, userId: string, role: MemberRole): Promise<MemberRecord> {
     const user = await this.findUser(userId);
     if (!user) throw new Error('User not found');
-    const existing = this.members.find(
-      (member) => member.dataroomId === dataroomId && member.user.id === userId,
-    );
-    if (existing) {
-      existing.role = role;
-      return existing;
-    }
-    const member: MemberRecord = { dataroomId, user, role, addedAt: Date.now() };
-    this.members.push(member);
-    return member;
+    return this.toMemberRecord(this.datarooms.addMemberEntry(dataroomId, userId, role));
+  }
+
+  async updateMemberRole(
+    dataroomId: string,
+    userId: string,
+    role: MemberRole,
+  ): Promise<MemberRecord | undefined> {
+    const entry = this.datarooms.updateMemberEntry(dataroomId, userId, role);
+    return entry ? this.toMemberRecord(entry) : undefined;
   }
 
   async removeMember(dataroomId: string, userId: string): Promise<void> {
-    const index = this.members.findIndex(
-      (member) => member.dataroomId === dataroomId && member.user.id === userId,
-    );
-    if (index >= 0) this.members.splice(index, 1);
+    this.datarooms.removeMemberEntry(dataroomId, userId);
+  }
+
+  private toMemberRecord(entry: {
+    dataroomId: string;
+    userId: string;
+    role: MemberRole;
+    addedAt: number;
+  }): MemberRecord {
+    const user = DEMO_USERS.find((candidate) => candidate.id === entry.userId) ?? DEMO_USERS[0];
+    return { dataroomId: entry.dataroomId, user, role: entry.role, addedAt: entry.addedAt };
   }
 
   async listFavorites(userId: string): Promise<FavoriteRecord[]> {
     return this.favorites
       .filter((favorite) => favorite.userId === userId)
+      .filter((favorite) => this.datarooms.roleOf(favorite.target.dataroomId, userId) !== null)
+      .filter((favorite) => {
+        if (!favorite.target.nodeId) return true;
+        const node = this.datarooms.findNodeForWorkspace(favorite.target.nodeId);
+        return !node || node.deletedAt === null;
+      })
       .map((favorite) => this.toFavoriteRecord(favorite.target, favorite.createdAt));
   }
 

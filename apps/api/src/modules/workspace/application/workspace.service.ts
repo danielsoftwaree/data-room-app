@@ -1,6 +1,14 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { STORAGE_QUOTA_BYTES } from '@repo/config';
 import type { ActivityAction, DataroomNode, MemberRole, User } from '@repo/domain';
+import { roleAtLeast } from '@repo/domain';
 import type { ToggleFavoriteRequest } from '@repo/contracts';
 import type {
   ActivityRecord,
@@ -41,12 +49,36 @@ export class WorkspaceService {
     return this.repository.listUsers();
   }
 
+  /** The caller's role in a room, or null when they are not a member. */
+  getRole(dataroomId: string, userId: string): Promise<MemberRole | null> {
+    return this.repository.findMemberRole(dataroomId, userId);
+  }
+
+  /**
+   * Membership gate. A non-member gets a 404 (not a 403) so we never reveal that
+   * a room they cannot see exists. Returns the caller's role for further checks.
+   */
+  async assertMember(dataroomId: string, userId: string): Promise<MemberRole> {
+    const role = await this.repository.findMemberRole(dataroomId, userId);
+    if (!role) throw new NotFoundException('Data room not found');
+    return role;
+  }
+
+  /** Requires membership AND at least `min` privilege; a member below it gets 403. */
+  async assertRole(dataroomId: string, userId: string, min: MemberRole): Promise<MemberRole> {
+    const role = await this.assertMember(dataroomId, userId);
+    if (!roleAtLeast(role, min)) {
+      throw new ForbiddenException(`This action requires ${min} access`);
+    }
+    return role;
+  }
+
   async ensureOwnerMember(dataroomId: string, userId: string): Promise<void> {
     await this.repository.addMember(dataroomId, userId, 'owner');
   }
 
-  async listMembers(dataroomId: string): Promise<MemberRecord[]> {
-    await this.assertDataroom(dataroomId);
+  async listMembers(dataroomId: string, actorId: string): Promise<MemberRecord[]> {
+    await this.assertMember(dataroomId, actorId);
     return this.repository.listMembers(dataroomId);
   }
 
@@ -56,15 +88,41 @@ export class WorkspaceService {
     userId: string,
     role: MemberRole,
   ): Promise<MemberRecord> {
-    await this.assertDataroom(dataroomId);
+    await this.assertRole(dataroomId, actorId, 'owner');
     await this.assertUser(userId);
+    if (await this.repository.findMemberRole(dataroomId, userId)) {
+      throw new ConflictException('This person is already a member');
+    }
     const member = await this.repository.addMember(dataroomId, userId, role);
     await this.recordActivity({ dataroomId, node: null, action: 'member.added', actorId });
     return member;
   }
 
+  async updateMemberRole(
+    dataroomId: string,
+    actorId: string,
+    userId: string,
+    role: MemberRole,
+  ): Promise<MemberRecord> {
+    await this.assertRole(dataroomId, actorId, 'owner');
+    const current = await this.repository.findMemberRole(dataroomId, userId);
+    if (!current) throw new NotFoundException('Member not found');
+    if (current === 'owner' && role !== 'owner' && (await this.repository.countOwners(dataroomId)) <= 1) {
+      throw new BadRequestException('A data room must keep at least one owner');
+    }
+    const member = await this.repository.updateMemberRole(dataroomId, userId, role);
+    if (!member) throw new NotFoundException('Member not found');
+    await this.recordActivity({ dataroomId, node: null, action: 'member.updated', actorId });
+    return member;
+  }
+
   async removeMember(dataroomId: string, actorId: string, userId: string): Promise<void> {
-    await this.assertDataroom(dataroomId);
+    await this.assertRole(dataroomId, actorId, 'owner');
+    const current = await this.repository.findMemberRole(dataroomId, userId);
+    if (!current) return;
+    if (current === 'owner' && (await this.repository.countOwners(dataroomId)) <= 1) {
+      throw new BadRequestException('A data room must keep at least one owner');
+    }
     await this.repository.removeMember(dataroomId, userId);
     await this.recordActivity({ dataroomId, node: null, action: 'member.removed', actorId });
   }
@@ -75,6 +133,7 @@ export class WorkspaceService {
 
   async addFavorite(userId: string, request: ToggleFavoriteRequest): Promise<FavoriteRecord> {
     const target = normalizeFavoriteTarget(request);
+    await this.assertMember(target.dataroomId, userId);
     await this.assertFavoriteTarget(target);
     return this.repository.addFavorite(userId, target);
   }
@@ -90,9 +149,10 @@ export class WorkspaceService {
 
   async listActivity(
     dataroomId: string,
+    actorId: string,
     options?: { nodeId?: string; limit?: number },
   ): Promise<ActivityRecord[]> {
-    await this.assertDataroom(dataroomId);
+    await this.assertMember(dataroomId, actorId);
     return this.repository.listActivity(dataroomId, options);
   }
 

@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@repo/ui/components/dialog';
-import { FolderIcon } from 'lucide-react';
+import { FolderIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { childrenOf } from '../../../shared/node-tree';
 import { cn } from '@repo/ui/lib/utils';
@@ -154,7 +154,7 @@ function MoveOption({
       data-selected={selected}
     >
       <span className={cn('shrink-0', depthWidthClass(depth))} />
-      <FolderIcon className="size-4 text-primary" />
+      <FolderIcon weight="fill" className="size-4 text-primary" />
       <span className="truncate font-medium">{label}</span>
       {selected ? <span className="ml-auto text-xs text-primary">Selected</span> : null}
     </button>

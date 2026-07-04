@@ -57,6 +57,8 @@ export const nodes = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    deletedBy: uuid('deleted_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => [
     check('nodes_type_check', sql`${table.type} IN ('folder', 'file')`),
@@ -66,12 +68,17 @@ export const nodes = pgTable(
     ),
     index('nodes_dataroom_id_idx').on(table.dataroomId),
     index('nodes_parent_id_idx').on(table.parentId),
+    index('nodes_deleted_idx')
+      .on(table.dataroomId)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+    // Name uniqueness applies only to live nodes: a name freed by trashing must be
+    // reusable, and two same-named files can coexist in the trash.
     uniqueIndex('nodes_root_name_unique')
       .on(table.dataroomId, sql`lower(${table.name})`)
-      .where(sql`${table.parentId} IS NULL`),
+      .where(sql`${table.parentId} IS NULL AND ${table.deletedAt} IS NULL`),
     uniqueIndex('nodes_child_name_unique')
       .on(table.dataroomId, table.parentId, sql`lower(${table.name})`)
-      .where(sql`${table.parentId} IS NOT NULL`),
+      .where(sql`${table.parentId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
   ],
 );
 
@@ -143,7 +150,9 @@ export const activity = pgTable(
         'node.renamed',
         'node.moved',
         'node.deleted',
+        'node.restored',
         'member.added',
+        'member.updated',
         'member.removed',
       ],
     }).notNull(),
@@ -159,7 +168,7 @@ export const activity = pgTable(
     ),
     check(
       'activity_action_check',
-      sql`${table.action} IN ('dataroom.created', 'folder.created', 'file.uploaded', 'node.renamed', 'node.moved', 'node.deleted', 'member.added', 'member.removed')`,
+      sql`${table.action} IN ('dataroom.created', 'folder.created', 'file.uploaded', 'node.renamed', 'node.moved', 'node.deleted', 'node.restored', 'member.added', 'member.updated', 'member.removed')`,
     ),
     index('activity_dataroom_created_at_idx').on(table.dataroomId, table.createdAt),
     index('activity_node_id_idx').on(table.nodeId),

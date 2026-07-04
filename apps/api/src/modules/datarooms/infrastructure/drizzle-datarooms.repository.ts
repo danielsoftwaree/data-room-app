@@ -1,11 +1,27 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, datarooms, eq, ilike, isNull, ne, nodes, sql } from '@repo/db';
+import {
+  and,
+  asc,
+  dataroomMembers,
+  datarooms,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  nodes,
+  sql,
+  users,
+} from '@repo/db';
 import type { Database, SQL } from '@repo/db';
-import type { Dataroom, DataroomNode, FileNode, FolderNode } from '@repo/domain';
+import type { Dataroom, DataroomNode, FileNode, FolderNode, User } from '@repo/domain';
 import { DRIZZLE } from '../../../config/database/database.tokens';
 import type {
   CreateFileNodeInput,
   CreateFolderInput,
+  DataroomForUser,
+  DataroomMeta,
   DataroomsRepository,
   ListNodesOptions,
   MoveNodeInput,
@@ -13,18 +29,56 @@ import type {
 
 type DataroomRow = typeof datarooms.$inferSelect;
 type NodeRow = typeof nodes.$inferSelect;
+type UserRow = typeof users.$inferSelect;
 
 /** Metadata persistence only - file bytes live behind BlobStorage. */
 @Injectable()
 export class DrizzleDataroomsRepository implements DataroomsRepository {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
-  async listDatarooms(): Promise<Dataroom[]> {
+  async listDataroomsForUser(userId: string): Promise<DataroomForUser[]> {
     const rows = await this.db
-      .select()
+      .select({ dataroom: datarooms, role: dataroomMembers.role })
       .from(datarooms)
+      .innerJoin(dataroomMembers, eq(dataroomMembers.dataroomId, datarooms.id))
+      .where(eq(dataroomMembers.userId, userId))
       .orderBy(asc(sql`lower(${datarooms.name})`));
-    return rows.map(toDataroom);
+    return rows.map((row) => ({ ...toDataroom(row.dataroom), myRole: row.role }));
+  }
+
+  async dataroomMeta(dataroomIds: readonly string[]): Promise<Map<string, DataroomMeta>> {
+    const meta = new Map<string, DataroomMeta>();
+    if (dataroomIds.length === 0) return meta;
+    const ids = [...dataroomIds];
+    for (const id of ids) meta.set(id, { memberCount: 0, owner: null });
+
+    const counts = await this.db
+      .select({
+        dataroomId: dataroomMembers.dataroomId,
+        count: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(dataroomMembers)
+      .where(inArray(dataroomMembers.dataroomId, ids))
+      .groupBy(dataroomMembers.dataroomId);
+    for (const row of counts) {
+      const entry = meta.get(row.dataroomId);
+      if (entry) entry.memberCount = row.count;
+    }
+
+    // Earliest-added owner represents the room. Ordered ascending so the first
+    // row per dataroom wins.
+    const owners = await this.db
+      .select({ dataroomId: dataroomMembers.dataroomId, user: users })
+      .from(dataroomMembers)
+      .innerJoin(users, eq(dataroomMembers.userId, users.id))
+      .where(and(inArray(dataroomMembers.dataroomId, ids), eq(dataroomMembers.role, 'owner')))
+      .orderBy(asc(dataroomMembers.createdAt));
+    for (const row of owners) {
+      const entry = meta.get(row.dataroomId);
+      if (entry && !entry.owner) entry.owner = toUser(row.user);
+    }
+
+    return meta;
   }
 
   async createDataroom(name: string, userId: string): Promise<Dataroom> {
@@ -55,6 +109,7 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
 
   async listNodes(dataroomId: string, options?: ListNodesOptions): Promise<DataroomNode[]> {
     const conditions: SQL[] = [eq(nodes.dataroomId, dataroomId)];
+    if (!options?.includeDeleted) conditions.push(isNull(nodes.deletedAt));
     if (options?.nameContains) {
       conditions.push(ilike(nodes.name, `%${escapeLikePattern(options.nameContains)}%`));
     }
@@ -63,6 +118,15 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
       .select()
       .from(nodes)
       .where(and(...conditions));
+    return rows.map(toNode);
+  }
+
+  async listDeletedNodes(dataroomIds: readonly string[]): Promise<DataroomNode[]> {
+    if (dataroomIds.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(nodes)
+      .where(and(inArray(nodes.dataroomId, [...dataroomIds]), isNotNull(nodes.deletedAt)));
     return rows.map(toNode);
   }
 
@@ -133,6 +197,22 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
     await this.db.delete(nodes).where(eq(nodes.id, id));
   }
 
+  async setNodesDeleted(ids: readonly string[], deletedBy: string): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(nodes)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(inArray(nodes.id, [...ids]));
+  }
+
+  async restoreNodes(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(nodes)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(inArray(nodes.id, [...ids]));
+  }
+
   async siblingNames(
     dataroomId: string,
     parentId: string | null,
@@ -140,6 +220,7 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
   ): Promise<string[]> {
     const conditions: SQL[] = [
       eq(nodes.dataroomId, dataroomId),
+      isNull(nodes.deletedAt),
       parentId === null ? isNull(nodes.parentId) : eq(nodes.parentId, parentId),
     ];
     if (excludeId) conditions.push(ne(nodes.id, excludeId));
@@ -173,11 +254,17 @@ function toNode(row: NodeRow): DataroomNode {
     updatedAt: row.updatedAt.getTime(),
     createdBy: row.createdBy,
     updatedBy: row.updatedBy,
+    deletedAt: row.deletedAt ? row.deletedAt.getTime() : null,
+    deletedBy: row.deletedBy,
   };
 
   if (row.type === 'folder') return { ...base, type: 'folder' };
   if (row.size === null) throw new Error(`File node ${row.id} is missing size`);
   return { ...base, type: 'file', size: row.size };
+}
+
+function toUser(row: UserRow): User {
+  return { id: row.id, name: row.name, email: row.email, color: row.color };
 }
 
 function expectRow<T>(row: T | undefined, message: string): T {

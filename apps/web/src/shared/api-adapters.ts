@@ -16,6 +16,8 @@ export function toDataroomNode(dto: NodeDto): DataroomNode {
     updatedAt: dto.updatedAt,
     createdBy: dto.createdBy,
     updatedBy: dto.updatedBy,
+    deletedAt: dto.deletedAt,
+    deletedBy: dto.deletedBy,
   };
   return dto.type === 'folder'
     ? { ...base, type: 'folder' }

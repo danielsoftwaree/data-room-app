@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppTrashRouteImport } from './routes/_app.trash'
+import { Route as AppFavoritesRouteImport } from './routes/_app.favorites'
 import { Route as AppDataroomsDataroomIdRouteImport } from './routes/_app.datarooms.$dataroomId'
 import { Route as AppDataroomsDataroomIdIndexRouteImport } from './routes/_app.datarooms.$dataroomId.index'
 import { Route as AppDataroomsDataroomIdFoldersFolderIdRouteImport } from './routes/_app.datarooms.$dataroomId.folders.$folderId'
@@ -28,6 +30,16 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrashRoute = AppTrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFavoritesRoute = AppFavoritesRouteImport.update({
+  id: '/favorites',
+  path: '/favorites',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDataroomsDataroomIdRoute = AppDataroomsDataroomIdRouteImport.update({
@@ -51,12 +63,16 @@ const AppDataroomsDataroomIdFoldersFolderIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/favorites': typeof AppFavoritesRoute
+  '/trash': typeof AppTrashRoute
   '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
   '/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
   '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/favorites': typeof AppFavoritesRoute
+  '/trash': typeof AppTrashRoute
   '/': typeof AppIndexRoute
   '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdIndexRoute
   '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
@@ -65,6 +81,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/favorites': typeof AppFavoritesRoute
+  '/_app/trash': typeof AppTrashRoute
   '/_app/': typeof AppIndexRoute
   '/_app/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
   '/_app/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
@@ -75,12 +93,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
+    | '/favorites'
+    | '/trash'
     | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/'
     | '/datarooms/$dataroomId/folders/$folderId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
+    | '/favorites'
+    | '/trash'
     | '/'
     | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/folders/$folderId'
@@ -88,6 +110,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/design-system'
+    | '/_app/favorites'
+    | '/_app/trash'
     | '/_app/'
     | '/_app/datarooms/$dataroomId'
     | '/_app/datarooms/$dataroomId/'
@@ -120,6 +144,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trash': {
+      id: '/_app/trash'
+      path: '/trash'
+      fullPath: '/trash'
+      preLoaderRoute: typeof AppTrashRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/favorites': {
+      id: '/_app/favorites'
+      path: '/favorites'
+      fullPath: '/favorites'
+      preLoaderRoute: typeof AppFavoritesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/datarooms/$dataroomId': {
@@ -164,11 +202,15 @@ const AppDataroomsDataroomIdRouteWithChildren =
   )
 
 interface AppRouteChildren {
+  AppFavoritesRoute: typeof AppFavoritesRoute
+  AppTrashRoute: typeof AppTrashRoute
   AppIndexRoute: typeof AppIndexRoute
   AppDataroomsDataroomIdRoute: typeof AppDataroomsDataroomIdRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppFavoritesRoute: AppFavoritesRoute,
+  AppTrashRoute: AppTrashRoute,
   AppIndexRoute: AppIndexRoute,
   AppDataroomsDataroomIdRoute: AppDataroomsDataroomIdRouteWithChildren,
 }

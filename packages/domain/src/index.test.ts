@@ -5,6 +5,8 @@ import {
   isNameTaken,
   NODE_NAME_MAX_LENGTH,
   nextAvailableName,
+  roleAtLeast,
+  selectTrashRoots,
   sortNodes,
   validateMoveTarget,
   validateNodeName,
@@ -119,6 +121,57 @@ describe('collectSubtreeIds', () => {
   });
 });
 
+describe('roleAtLeast', () => {
+  test('owner satisfies every threshold', () => {
+    expect(roleAtLeast('owner', 'owner')).toBe(true);
+    expect(roleAtLeast('owner', 'editor')).toBe(true);
+    expect(roleAtLeast('owner', 'viewer')).toBe(true);
+  });
+
+  test('editor satisfies editor and viewer but not owner', () => {
+    expect(roleAtLeast('editor', 'owner')).toBe(false);
+    expect(roleAtLeast('editor', 'editor')).toBe(true);
+    expect(roleAtLeast('editor', 'viewer')).toBe(true);
+  });
+
+  test('viewer satisfies only viewer', () => {
+    expect(roleAtLeast('viewer', 'editor')).toBe(false);
+    expect(roleAtLeast('viewer', 'viewer')).toBe(true);
+  });
+});
+
+describe('selectTrashRoots', () => {
+  const trashed = (id: string, parentId: string | null, deletedAt: number | null) => ({
+    id,
+    parentId,
+    deletedAt,
+  });
+
+  test('returns only top-level trashed nodes, not their trashed descendants', () => {
+    const nodes = [
+      trashed('folder', null, 100),
+      trashed('child', 'folder', 100),
+      trashed('grandchild', 'child', 100),
+    ];
+    expect(selectTrashRoots(nodes).map((n) => n.id)).toEqual(['folder']);
+  });
+
+  test('a trashed node whose parent is still live counts as a root', () => {
+    const nodes = [trashed('live-parent', null, null), trashed('trashed-child', 'live-parent', 200)];
+    expect(selectTrashRoots(nodes).map((n) => n.id)).toEqual(['trashed-child']);
+  });
+
+  test('ignores live nodes entirely', () => {
+    const nodes = [trashed('a', null, null), trashed('b', null, 5)];
+    expect(selectTrashRoots(nodes).map((n) => n.id)).toEqual(['b']);
+  });
+
+  test('surfaces every independently-trashed root across datarooms', () => {
+    const nodes = [trashed('r1', null, 1), trashed('r2', null, 2), trashed('c1', 'r1', 1)];
+    expect(selectTrashRoots(nodes).map((n) => n.id).sort()).toEqual(['r1', 'r2']);
+  });
+});
+
 describe('validateMoveTarget', () => {
   const nodes: DataroomNode[] = [
     node({ id: 'folder-a', parentId: null, type: 'folder' }),
@@ -185,6 +238,8 @@ function node(input: {
     updatedAt: 1,
     createdBy: null,
     updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
   };
   return input.type === 'folder' ? { ...base, type: 'folder' } : { ...base, type: 'file', size: 1 };
 }

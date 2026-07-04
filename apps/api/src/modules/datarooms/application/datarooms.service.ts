@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Dataroom } from '@repo/domain';
+import type { DataroomDto } from '@repo/contracts';
+import type { MemberRole } from '@repo/domain';
 import { isUniqueViolation } from '../../../shared/errors/database';
 import { BLOB_STORAGE } from '../../storage/blob-storage';
 import type { BlobStorage } from '../../storage/blob-storage';
@@ -17,11 +18,20 @@ export class DataroomsService {
     @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
   ) {}
 
-  async listDatarooms(): Promise<Dataroom[]> {
-    return this.repository.listDatarooms();
+  async listDatarooms(userId: string): Promise<DataroomDto[]> {
+    const rooms = await this.repository.listDataroomsForUser(userId);
+    const meta = await this.repository.dataroomMeta(rooms.map((room) => room.id));
+    return rooms.map((room) => {
+      const roomMeta = meta.get(room.id);
+      return {
+        ...room,
+        memberCount: roomMeta?.memberCount ?? 0,
+        owner: roomMeta?.owner ?? null,
+      };
+    });
   }
 
-  async createDataroom(rawName: string, userId: string): Promise<Dataroom> {
+  async createDataroom(rawName: string, userId: string): Promise<DataroomDto> {
     const name = parseNodeName(rawName);
     try {
       const dataroom = await this.repository.createDataroom(name, userId);
@@ -32,7 +42,7 @@ export class DataroomsService {
         action: 'dataroom.created',
         actorId: userId,
       });
-      return dataroom;
+      return this.getDataroom(dataroom.id, userId);
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`A data room named "${name}" already exists`);
@@ -41,19 +51,18 @@ export class DataroomsService {
     }
   }
 
-  async getDataroom(id: string): Promise<Dataroom> {
-    const dataroom = await this.repository.findDataroom(id);
-    if (!dataroom) throw new DataroomNotFoundError();
-    return dataroom;
+  async getDataroom(id: string, userId: string): Promise<DataroomDto> {
+    const myRole = await this.workspace.assertMember(id, userId);
+    return this.toDto(id, myRole);
   }
 
-  async renameDataroom(id: string, rawName: string, userId: string): Promise<Dataroom> {
-    await this.getDataroom(id);
+  async renameDataroom(id: string, rawName: string, userId: string): Promise<DataroomDto> {
+    const myRole = await this.workspace.assertRole(id, userId, 'owner');
     const name = parseNodeName(rawName);
     try {
       const updated = await this.repository.renameDataroom(id, name, userId);
       if (!updated) throw new DataroomNotFoundError();
-      return updated;
+      return this.toDto(id, myRole);
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`A data room named "${name}" already exists`);
@@ -62,14 +71,22 @@ export class DataroomsService {
     }
   }
 
-  async deleteDataroom(id: string): Promise<{ deletedNodeIds: string[] }> {
-    await this.getDataroom(id);
-    const dataroomNodes = await this.repository.listNodes(id);
+  async deleteDataroom(id: string, userId: string): Promise<{ deletedNodeIds: string[] }> {
+    await this.workspace.assertRole(id, userId, 'owner');
+    // Include trashed nodes so their blobs are cleaned up too — the whole room goes.
+    const dataroomNodes = await this.repository.listNodes(id, { includeDeleted: true });
     const deletedNodeIds = dataroomNodes.map((node) => node.id);
     const fileIds = dataroomNodes.filter((node) => node.type === 'file').map((node) => node.id);
     await this.repository.deleteDataroom(id);
     await cleanupBlobs(this.storage, fileIds);
     return { deletedNodeIds };
+  }
+
+  private async toDto(id: string, myRole: MemberRole): Promise<DataroomDto> {
+    const dataroom = await this.repository.findDataroom(id);
+    if (!dataroom) throw new DataroomNotFoundError();
+    const meta = (await this.repository.dataroomMeta([id])).get(id);
+    return { ...dataroom, myRole, memberCount: meta?.memberCount ?? 0, owner: meta?.owner ?? null };
   }
 }
 

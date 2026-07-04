@@ -52,8 +52,11 @@ export class DataroomsController {
 
   @Get()
   @ApiOkResponse({ type: [DataroomDto] })
-  listDatarooms(): Promise<DataroomDto[]> {
-    return this.dataroomsService.listDatarooms();
+  async listDatarooms(
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DataroomDto[]> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.dataroomsService.listDatarooms(userId);
   }
 
   @Post()
@@ -68,8 +71,12 @@ export class DataroomsController {
 
   @Get(':id')
   @ApiOkResponse({ type: DataroomDto })
-  getDataroom(@Param('id') id: string): Promise<DataroomDto> {
-    return this.dataroomsService.getDataroom(id);
+  async getDataroom(
+    @Param('id') id: string,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DataroomDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.dataroomsService.getDataroom(id, userId);
   }
 
   @Patch(':id')
@@ -85,8 +92,12 @@ export class DataroomsController {
 
   @Delete(':id')
   @ApiOkResponse({ type: DeleteDataroomResultDto })
-  deleteDataroom(@Param('id') id: string): Promise<DeleteDataroomResultDto> {
-    return this.dataroomsService.deleteDataroom(id);
+  async deleteDataroom(
+    @Param('id') id: string,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<DeleteDataroomResultDto> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.dataroomsService.deleteDataroom(id, userId);
   }
 
   @Get(':id/nodes')
@@ -97,8 +108,13 @@ export class DataroomsController {
     description: 'Case-insensitive substring filter over folder/file names',
   })
   @ApiOkResponse({ type: [NodeDto] })
-  listNodes(@Param('id') id: string, @Query() query: ListNodesQueryDto): Promise<NodeDto[]> {
-    return this.nodesService.listNodes(id, { nameContains: query.search });
+  async listNodes(
+    @Param('id') id: string,
+    @Query() query: ListNodesQueryDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<NodeDto[]> {
+    const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.nodesService.listNodes(id, userId, { nameContains: query.search });
   }
 
   @Post(':id/folders')

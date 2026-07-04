@@ -11,6 +11,7 @@ import {
   inArray,
   isNull,
   nodes,
+  or,
   sql,
   users,
 } from '@repo/db';
@@ -61,7 +62,7 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
     const [row] = await this.db
       .select({ id: nodes.id })
       .from(nodes)
-      .where(and(eq(nodes.id, nodeId), eq(nodes.dataroomId, dataroomId)))
+      .where(and(eq(nodes.id, nodeId), eq(nodes.dataroomId, dataroomId), isNull(nodes.deletedAt)))
       .limit(1);
     return Boolean(row);
   }
@@ -86,17 +87,43 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
     }));
   }
 
+  async findMemberRole(dataroomId: string, userId: string): Promise<MemberRole | null> {
+    const [row] = await this.db
+      .select({ role: dataroomMembers.role })
+      .from(dataroomMembers)
+      .where(and(eq(dataroomMembers.dataroomId, dataroomId), eq(dataroomMembers.userId, userId)))
+      .limit(1);
+    return row ? row.role : null;
+  }
+
+  async countOwners(dataroomId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)`.mapWith(Number) })
+      .from(dataroomMembers)
+      .where(and(eq(dataroomMembers.dataroomId, dataroomId), eq(dataroomMembers.role, 'owner')));
+    return row?.count ?? 0;
+  }
+
   async addMember(dataroomId: string, userId: string, role: MemberRole): Promise<MemberRecord> {
     await this.db
       .insert(dataroomMembers)
       .values({ dataroomId, userId, role })
-      .onConflictDoUpdate({
-        target: [dataroomMembers.dataroomId, dataroomMembers.userId],
-        set: { role },
-      });
+      .onConflictDoNothing({ target: [dataroomMembers.dataroomId, dataroomMembers.userId] });
     const member = (await this.listMembers(dataroomId)).find((row) => row.user.id === userId);
     if (!member) throw new Error('Failed to add member');
     return member;
+  }
+
+  async updateMemberRole(
+    dataroomId: string,
+    userId: string,
+    role: MemberRole,
+  ): Promise<MemberRecord | undefined> {
+    await this.db
+      .update(dataroomMembers)
+      .set({ role })
+      .where(and(eq(dataroomMembers.dataroomId, dataroomId), eq(dataroomMembers.userId, userId)));
+    return (await this.listMembers(dataroomId)).find((row) => row.user.id === userId);
   }
 
   async removeMember(dataroomId: string, userId: string): Promise<void> {
@@ -106,6 +133,9 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
   }
 
   async listFavorites(userId: string): Promise<FavoriteRecord[]> {
+    // Only surface favorites the user can still reach: rooms they belong to, and
+    // node favorites whose node is still live. Rows for trashed nodes are kept in
+    // the table (they return on restore) but hidden here.
     const rows = await this.db
       .select({
         dataroomId: favorites.dataroomId,
@@ -118,8 +148,15 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
       })
       .from(favorites)
       .innerJoin(datarooms, eq(favorites.dataroomId, datarooms.id))
+      .innerJoin(
+        dataroomMembers,
+        and(
+          eq(dataroomMembers.dataroomId, favorites.dataroomId),
+          eq(dataroomMembers.userId, userId),
+        ),
+      )
       .leftJoin(nodes, eq(favorites.nodeId, nodes.id))
-      .where(eq(favorites.userId, userId))
+      .where(and(eq(favorites.userId, userId), or(isNull(favorites.nodeId), isNull(nodes.deletedAt))))
       .orderBy(desc(favorites.createdAt));
     return rows.map((row) => ({
       dataroomId: row.dataroomId,

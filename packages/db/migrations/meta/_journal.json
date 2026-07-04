@@ -15,6 +15,13 @@
       "when": 1783154920692,
       "tag": "0001_high_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783164420168,
+      "tag": "0002_quick_titania",
+      "breakpoints": true
     }
   ]
 }

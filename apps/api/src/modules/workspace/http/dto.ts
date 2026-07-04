@@ -8,6 +8,7 @@ import type {
   MemberDto as MemberContract,
   StorageUsageResponse,
   ToggleFavoriteRequest,
+  UpdateMemberRequest,
   UserDto as UserContract,
 } from '@repo/contracts';
 import type { ActivityAction, MemberRole, NodeType } from '@repo/domain';
@@ -45,6 +46,12 @@ export class AddMemberDto implements AddMemberRequest {
   @IsUUID()
   userId!: string;
 
+  @ApiProperty({ enum: ['owner', 'editor', 'viewer'] })
+  @IsIn(['owner', 'editor', 'viewer'])
+  role!: MemberRole;
+}
+
+export class UpdateMemberDto implements UpdateMemberRequest {
   @ApiProperty({ enum: ['owner', 'editor', 'viewer'] })
   @IsIn(['owner', 'editor', 'viewer'])
   role!: MemberRole;
@@ -108,7 +115,9 @@ export class ActivityDto implements ActivityContract {
       'node.renamed',
       'node.moved',
       'node.deleted',
+      'node.restored',
       'member.added',
+      'member.updated',
       'member.removed',
     ],
   })

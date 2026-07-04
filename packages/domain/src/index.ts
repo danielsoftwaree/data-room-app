@@ -30,6 +30,13 @@ export interface DataroomMember {
   addedAt: number;
 }
 
+const ROLE_RANK: Record<MemberRole, number> = { viewer: 0, editor: 1, owner: 2 };
+
+/** True when `role` grants at least the access of `min` (viewer < editor < owner). */
+export function roleAtLeast(role: MemberRole, min: MemberRole): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK[min];
+}
+
 export type ActivityAction =
   | 'dataroom.created'
   | 'folder.created'
@@ -37,7 +44,9 @@ export type ActivityAction =
   | 'node.renamed'
   | 'node.moved'
   | 'node.deleted'
+  | 'node.restored'
   | 'member.added'
+  | 'member.updated'
   | 'member.removed';
 
 export interface ActivityEntry {
@@ -61,6 +70,9 @@ interface BaseNode {
   updatedAt: number;
   createdBy: string | null;
   updatedBy: string | null;
+  /** epoch ms when the node was moved to trash, or null when live */
+  deletedAt: number | null;
+  deletedBy: string | null;
 }
 
 export interface FolderNode extends BaseNode {
@@ -148,6 +160,21 @@ export function collectSubtreeIds(
     for (const child of childrenByParent.get(id) ?? []) stack.push(child);
   }
   return result;
+}
+
+/**
+ * From a flat list of trashed nodes (one or more datarooms), returns only the
+ * subtree "roots" — a trashed node whose parent is null, absent from the list,
+ * or itself not trashed. This is what a Trash screen lists: one entry per
+ * top-level trashed item, not every descendant that was marked alongside it.
+ */
+export function selectTrashRoots<
+  T extends { id: string; parentId: string | null; deletedAt: number | null },
+>(nodes: readonly T[]): T[] {
+  const deletedIds = new Set(nodes.filter((n) => n.deletedAt !== null).map((n) => n.id));
+  return nodes.filter(
+    (n) => n.deletedAt !== null && (n.parentId === null || !deletedIds.has(n.parentId)),
+  );
 }
 
 export type MoveValidationError =

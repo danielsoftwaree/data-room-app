@@ -13,6 +13,7 @@ import { MockError } from './db';
 function errorBody(status: number, message: string) {
   const codes: Record<number, string> = {
     400: 'BAD_REQUEST',
+    403: 'FORBIDDEN',
     404: 'NOT_FOUND',
     409: 'CONFLICT',
     413: 'PAYLOAD_TOO_LARGE',
@@ -53,9 +54,9 @@ export const handlers = [
 
   http.get(
     '/api/datarooms',
-    guard(async () => {
+    guard(async ({ request }) => {
       await delay();
-      return HttpResponse.json(db.listDatarooms());
+      return HttpResponse.json(db.listDatarooms(currentUserId(request)));
     }),
   ),
 
@@ -71,7 +72,9 @@ export const handlers = [
 
   http.get(
     '/api/datarooms/:id',
-    guard(async ({ params }) => HttpResponse.json(db.getDataroom(params.id as string))),
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.getDataroom(params.id as string, currentUserId(request))),
+    ),
   ),
 
   http.patch(
@@ -86,7 +89,9 @@ export const handlers = [
 
   http.delete(
     '/api/datarooms/:id',
-    guard(async ({ params }) => HttpResponse.json(db.deleteDataroom(params.id as string))),
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.deleteDataroom(params.id as string, currentUserId(request))),
+    ),
   ),
 
   http.get(
@@ -94,7 +99,9 @@ export const handlers = [
     guard(async ({ params, request }) => {
       await delay();
       const search = new URL(request.url).searchParams.get('search') ?? undefined;
-      return HttpResponse.json(db.listNodes(params.id as string, { nameContains: search }));
+      return HttpResponse.json(
+        db.listNodes(params.id as string, currentUserId(request), { nameContains: search }),
+      );
     }),
   ),
 
@@ -167,9 +174,38 @@ export const handlers = [
     ),
   ),
 
+  http.post(
+    '/api/nodes/:id/restore',
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.restoreNode(params.id as string, currentUserId(request))),
+    ),
+  ),
+
+  http.delete(
+    '/api/nodes/:id/purge',
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.purgeNode(params.id as string, currentUserId(request))),
+    ),
+  ),
+
+  http.get(
+    '/api/trash',
+    guard(async ({ request }) => {
+      await delay();
+      return HttpResponse.json(db.listTrash(currentUserId(request)));
+    }),
+  ),
+
+  http.delete(
+    '/api/trash',
+    guard(async ({ request }) => HttpResponse.json(db.emptyTrash(currentUserId(request)))),
+  ),
+
   http.get(
     '/api/datarooms/:id/members',
-    guard(async ({ params }) => HttpResponse.json(db.listMembers(params.id as string))),
+    guard(async ({ params, request }) =>
+      HttpResponse.json(db.listMembers(params.id as string, currentUserId(request))),
+    ),
   ),
 
   http.post(
@@ -182,6 +218,21 @@ export const handlers = [
       return HttpResponse.json(
         db.addMember(params.id as string, body.userId, body.role, currentUserId(request)),
         { status: 201 },
+      );
+    }),
+  ),
+
+  http.patch(
+    '/api/datarooms/:id/members/:userId',
+    guard(async ({ params, request }) => {
+      const body = (await request.json()) as { role: 'owner' | 'editor' | 'viewer' };
+      return HttpResponse.json(
+        db.updateMemberRole(
+          params.id as string,
+          params.userId as string,
+          body.role,
+          currentUserId(request),
+        ),
       );
     }),
   ),
@@ -223,7 +274,7 @@ export const handlers = [
     guard(async ({ params, request }) => {
       const search = new URL(request.url).searchParams;
       return HttpResponse.json(
-        db.listActivity(params.id as string, {
+        db.listActivity(params.id as string, currentUserId(request), {
           nodeId: search.get('nodeId'),
           limit: Number(search.get('limit') || 25),
         }),
@@ -235,8 +286,8 @@ export const handlers = [
 
   http.get(
     '/api/nodes/:id/content',
-    guard(async ({ params }) => {
-      const file = db.getFileContent(params.id as string);
+    guard(async ({ params, request }) => {
+      const file = db.getFileContent(params.id as string, currentUserId(request));
       // TS 5.7+ types Uint8Array over ArrayBufferLike; BlobPart wants ArrayBuffer-backed views.
       const bytes = file.bytes as Uint8Array<ArrayBuffer>;
       const blob = new Blob([bytes], { type: file.contentType });

@@ -8,7 +8,7 @@ export const Route = createFileRoute('/_app/datarooms/$dataroomId/folders/$folde
 
 function RouteComponent() {
   const { dataroomId, folderId } = Route.useParams();
-  const { q } = Route.useSearch();
+  const { q, select } = Route.useSearch();
   const navigate = Route.useNavigate();
 
   function handleSearchTermChange(nextTerm: string): void {
@@ -20,16 +20,20 @@ function RouteComponent() {
       dataroomId={dataroomId}
       folderId={folderId}
       searchTerm={q ?? ''}
+      selectNodeId={select ?? null}
       onSearchTermChange={handleSearchTermChange}
+      onConsumeSelect={() => void navigate({ search: q ? { q } : {}, replace: true })}
     />
   );
 }
 
 interface BrowserSearch {
   q?: string;
+  select?: string;
 }
 
 function validateSearch(search: Record<string, unknown>): BrowserSearch {
   const q = typeof search.q === 'string' ? search.q.trim() : '';
-  return q ? { q } : {};
+  const select = typeof search.select === 'string' ? search.select : '';
+  return { ...(q ? { q } : {}), ...(select ? { select } : {}) };
 }

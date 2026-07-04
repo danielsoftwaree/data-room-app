@@ -49,7 +49,15 @@ export interface WorkspaceRepository {
   dataroomExists(id: string): Promise<boolean>;
   nodeBelongsToDataroom(nodeId: string, dataroomId: string): Promise<boolean>;
   listMembers(dataroomId: string): Promise<MemberRecord[]>;
+  findMemberRole(dataroomId: string, userId: string): Promise<MemberRole | null>;
+  countOwners(dataroomId: string): Promise<number>;
+  /** Plain insert — the service rejects duplicates before calling. */
   addMember(dataroomId: string, userId: string, role: MemberRole): Promise<MemberRecord>;
+  updateMemberRole(
+    dataroomId: string,
+    userId: string,
+    role: MemberRole,
+  ): Promise<MemberRecord | undefined>;
   removeMember(dataroomId: string, userId: string): Promise<void>;
   listFavorites(userId: string): Promise<FavoriteRecord[]>;
   addFavorite(userId: string, target: FavoriteTarget): Promise<FavoriteRecord>;

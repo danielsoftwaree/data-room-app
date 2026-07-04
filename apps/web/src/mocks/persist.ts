@@ -11,7 +11,8 @@ import type { ActivityAction, Dataroom, DataroomNode, MemberRole, NodeType } fro
 const DB_NAME = 'dataroom-dev-mocks';
 const DB_VERSION = 1;
 const STORE_NAME = 'state';
-const STATE_KEY = 'v2';
+// Bumped when the seed/shape changes so stale local snapshots are discarded.
+const STATE_KEY = 'v3';
 
 export interface PersistedFile {
   contentType: string;

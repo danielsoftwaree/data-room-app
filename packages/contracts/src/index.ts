@@ -19,7 +19,15 @@ export interface HealthResponse {
   status: 'ok';
 }
 
-export type DataroomDto = Dataroom;
+/**
+ * A data room as returned by the API, enriched with the caller's access context
+ * so the dashboard can render owner + member count without extra round-trips.
+ */
+export type DataroomDto = Dataroom & {
+  myRole: MemberRole;
+  memberCount: number;
+  owner: UserDto | null;
+};
 export type NodeDto = DataroomNode;
 export type UserDto = User;
 export type MemberDto = DataroomMember;
@@ -47,6 +55,10 @@ export interface MoveNodeRequest {
 
 export interface AddMemberRequest {
   userId: string;
+  role: MemberRole;
+}
+
+export interface UpdateMemberRequest {
   role: MemberRole;
 }
 
@@ -86,6 +98,27 @@ export interface DeleteDataroomResult {
 }
 
 export interface DeleteNodeResult {
+  deletedIds: string[];
+}
+
+/** One top-level item in the trash, with enough context to list and restore it. */
+export interface TrashItemDto {
+  id: string;
+  dataroomId: string;
+  dataroomName: string;
+  parentId: string | null;
+  type: NodeType;
+  name: string;
+  size: number | null;
+  deletedAt: number;
+  deletedBy: UserDto | null;
+  /** folders + files contained within (0 for files), for "Folder · N items" copy */
+  itemCount: number;
+  /** the caller's role in this data room, so the UI can gate destructive actions */
+  myRole: MemberRole;
+}
+
+export interface EmptyTrashResult {
   deletedIds: string[];
 }
 

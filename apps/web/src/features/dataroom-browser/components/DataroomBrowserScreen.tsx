@@ -2,31 +2,26 @@ import { useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   getApiErrorMessage,
-  useAddFavorite,
   useGetDataroom,
-  useGetMe,
   useListActivity,
-  useListFavorites,
   useListMembers,
   useListNodes,
   useListUsers,
-  useRemoveFavorite,
 } from '@repo/api-client';
 import type { ActivityDto, UserDto } from '@repo/api-client';
 import { UPLOAD } from '@repo/config';
 import type { DataroomNode, FileNode } from '@repo/domain';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@repo/ui/components/alert-dialog';
 import { Badge } from '@repo/ui/components/badge';
 import { Button } from '@repo/ui/components/button';
+import { Checkbox } from '@repo/ui/components/checkbox';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@repo/ui/components/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,20 +35,24 @@ import { Input } from '@repo/ui/components/input';
 import { Progress } from '@repo/ui/components/progress';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { toast } from '@repo/ui/components/sonner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
 import { cn } from '@repo/ui/lib/utils';
+import { FilePdfIcon, FolderIcon as FolderFillIcon, VaultIcon } from '@phosphor-icons/react';
 import {
   BellIcon,
   CheckIcon,
-  CopyIcon,
-  FileTextIcon,
+  CheckSquareIcon,
+  EyeIcon,
   FilterIcon,
-  FolderIcon,
+  FolderOpenIcon,
   FolderPlusIcon,
   Grid2X2Icon,
+  LinkIcon,
   ListIcon,
   MoreVerticalIcon,
   MoveIcon,
   PencilIcon,
+  RefreshCwIcon,
   SearchIcon,
   StarIcon,
   Trash2Icon,
@@ -62,8 +61,10 @@ import {
   XIcon,
 } from 'lucide-react';
 import { NameDialog } from '../../../shared/NameDialog';
+import { UserMenu } from '../../../shared/UserMenu';
+import { useFavorites } from '../../../shared/favorites';
 import { formatCount, formatDate, formatFileSize } from '../../../shared/format';
-import { childrenOf, findNode, folderPath, subtreeCounts } from '../../../shared/node-tree';
+import { childrenOf, findNode, folderPath } from '../../../shared/node-tree';
 import { toDataroomNode } from '../../../shared/api-adapters';
 import { useNodeMutations } from '../hooks';
 import { DataroomBreadcrumbs } from './Breadcrumbs';
@@ -76,7 +77,11 @@ interface DataroomBrowserScreenProps {
   dataroomId: string;
   folderId: string | null;
   searchTerm: string;
+  /** A node to reveal on first render (from a favorites deep-link, `?select=`). */
+  selectNodeId?: string | null;
   onSearchTermChange: (term: string) => void;
+  /** Called once the select target has been revealed, so the URL param can clear. */
+  onConsumeSelect?: () => void;
 }
 
 type FilterMode = 'all' | 'folders' | 'files';
@@ -94,7 +99,9 @@ function DocumentsWorkspace({
   dataroomId,
   folderId,
   searchTerm,
+  selectNodeId,
   onSearchTermChange,
+  onConsumeSelect,
 }: Readonly<DataroomBrowserScreenProps>) {
   const navigate = useNavigate();
   const dataroom = useGetDataroom(dataroomId);
@@ -108,8 +115,7 @@ function DocumentsWorkspace({
   );
   const members = useListMembers(dataroomId);
   const users = useListUsers();
-  const me = useGetMe();
-  const favorites = useListFavorites();
+  const favorites = useFavorites();
   const recentActivity = useListActivity(dataroomId, { limit: 15 });
 
   const nodes = useMemo(() => (nodesQuery.data?.data ?? []).map(toDataroomNode), [nodesQuery.data]);
@@ -136,36 +142,44 @@ function DocumentsWorkspace({
   );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
+  const [contextNode, setContextNode] = useState<DataroomNode | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<DataroomNode | null>(null);
-  const [deleteTargets, setDeleteTargets] = useState<DataroomNode[] | null>(null);
   const [moveTargets, setMoveTargets] = useState<DataroomNode[] | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [viewerFile, setViewerFile] = useState<FileNode | null>(null);
   const [uploadingNames, setUploadingNames] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Fires the `?select` reveal exactly once per folder mount (no effect needed).
+  const revealedRef = useRef(false);
 
   const { createFolder, createFile, renameNode, deleteNode, moveNode } =
     useNodeMutations(dataroomId);
-  const addFavorite = useAddFavorite({
-    mutation: { onSuccess: () => void favorites.refetch() },
-  });
-  const removeFavorite = useRemoveFavorite({
-    mutation: { onSuccess: () => void favorites.refetch() },
-  });
 
   const visibleNodes = useMemo(
     () => sortVisibleNodes(filterNodes(baseNodes, filter), sortKey, sortDir),
     [baseNodes, filter, sortKey, sortDir],
   );
   const selectedNodes = visibleNodes.filter((node) => selectedIds.has(node.id));
-  const selectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null;
+  // The detail panel follows a single click (preview), independent of checkbox selection.
+  const previewNode = previewNodeId ? (findNode(nodes, previewNodeId) ?? null) : null;
   const dataroomName = dataroom.data?.data.name ?? 'Data room';
+  const myRole = dataroom.data?.data.myRole;
+  const canEdit = myRole === 'owner' || myRole === 'editor';
+  const isOwner = myRole === 'owner';
   const memberCount = members.data?.data.length ?? 0;
-  const isRoomFavorite = (favorites.data?.data ?? []).some(
-    (favorite) => favorite.dataroomId === dataroomId && favorite.nodeId === null,
-  );
+  const isRoomFavorite = favorites.isFavorite(dataroomId);
   const siblingNames = children.map((node) => node.name);
+
+  // Reveal the `?select` target once: scroll it into view and open its details.
+  function revealNode(node: DataroomNode, element: HTMLElement | null): void {
+    if (revealedRef.current || !element || node.id !== selectNodeId) return;
+    revealedRef.current = true;
+    element.scrollIntoView({ block: 'center' });
+    setPreviewNodeId(node.id);
+    onConsumeSelect?.();
+  }
 
   const isLoading = dataroom.isPending || nodesQuery.isPending;
   const isError =
@@ -178,10 +192,17 @@ function DocumentsWorkspace({
     localStorage.setItem('dataroom-view', nextView);
   }
 
-  function handleRowClick(node: DataroomNode, event: MouseEvent): void {
+  // Single click previews the item (opens the detail panel); double click opens it.
+  // Selection (row highlight, bulk actions) is driven only by the checkbox.
+  function openPreview(node: DataroomNode): void {
+    setPreviewNodeId(node.id);
+  }
+
+  // Checkbox selection; `extend` (shift-click) grows the range from the last-touched row.
+  function toggleSelect(node: DataroomNode, extend: boolean): void {
     setSelectedIds((current) => {
       const next = new Set(current);
-      if (event.shiftKey && lastSelectedId) {
+      if (extend && lastSelectedId) {
         const from = visibleNodes.findIndex((candidate) => candidate.id === lastSelectedId);
         const to = visibleNodes.findIndex((candidate) => candidate.id === node.id);
         if (from >= 0 && to >= 0) {
@@ -190,14 +211,28 @@ function DocumentsWorkspace({
           return next;
         }
       }
-      if (event.ctrlKey || event.metaKey) {
-        if (next.has(node.id)) next.delete(node.id);
-        else next.add(node.id);
-        return next;
-      }
-      return new Set([node.id]);
+      if (next.has(node.id)) next.delete(node.id);
+      else next.add(node.id);
+      return next;
     });
     setLastSelectedId(node.id);
+  }
+
+  function copyLink(): void {
+    void navigator.clipboard.writeText(window.location.href);
+    toast.success('Link copied');
+  }
+
+  function selectAll(): void {
+    setSelectedIds(new Set(visibleNodes.map((node) => node.id)));
+  }
+
+  // One context menu for the whole area: resolve which node (if any) was right-clicked
+  // from the DOM so the menu always opens at the cursor with the right target.
+  function handleAreaContextMenu(event: MouseEvent<HTMLElement>): void {
+    const element = (event.target as HTMLElement).closest('[data-node-id]');
+    const id = element?.getAttribute('data-node-id') ?? null;
+    setContextNode(id ? (visibleNodes.find((node) => node.id === id) ?? null) : null);
   }
 
   function openNode(node: DataroomNode): void {
@@ -243,13 +278,16 @@ function DocumentsWorkspace({
     if (failures.length > 0) toast.error(failures.slice(0, 5).join('\n'));
   }
 
-  async function confirmDelete(): Promise<void> {
-    if (!deleteTargets) return;
-    for (const target of topLevelTargets(deleteTargets, nodes)) {
+  // Trash is reversible (Undo toast + Trash screen), so there is no confirm step.
+  async function trashNodes(targets: readonly DataroomNode[]): Promise<void> {
+    const roots = topLevelTargets(targets, nodes);
+    for (const target of roots) {
       await deleteNode.mutateAsync({ id: target.id });
     }
     setSelectedIds(new Set());
-    setDeleteTargets(null);
+    if (previewNodeId && roots.some((target) => target.id === previewNodeId)) {
+      setPreviewNodeId(null);
+    }
   }
 
   async function confirmMove(parentId: string | null): Promise<void> {
@@ -259,12 +297,6 @@ function DocumentsWorkspace({
     }
     setSelectedIds(new Set());
     setMoveTargets(null);
-  }
-
-  function toggleRoomFavorite(): void {
-    const data = { dataroomId, nodeId: null };
-    if (isRoomFavorite) removeFavorite.mutate({ data });
-    else addFavorite.mutate({ data });
   }
 
   if (isError) {
@@ -283,18 +315,21 @@ function DocumentsWorkspace({
       className="flex min-h-screen min-w-0 flex-col bg-background xl:h-screen xl:flex-row"
       tabIndex={-1}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') setSelectedIds(new Set());
+        if (event.key === 'Escape') {
+          setSelectedIds(new Set());
+          setPreviewNodeId(null);
+        }
       }}
     >
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="relative flex min-w-0 flex-1 flex-col">
         <RoomHeader
           name={currentFolder?.name ?? dataroomName}
+          kind={currentFolder ? 'folder' : 'room'}
           memberCount={memberCount}
           isFavorite={isRoomFavorite}
           searchTerm={searchTerm}
-          currentUser={me.data?.data}
           activity={recentActivity.data?.data ?? []}
-          onToggleFavorite={toggleRoomFavorite}
+          onToggleFavorite={() => favorites.toggle(dataroomId)}
           onOpenMembers={() => setMembersOpen(true)}
           onSearch={onSearchTermChange}
         />
@@ -307,17 +342,14 @@ function DocumentsWorkspace({
                 dataroomName={dataroomName}
                 path={path}
               />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Copy link"
-                onClick={() => {
-                  void navigator.clipboard.writeText(window.location.href);
-                  toast.success('Link copied');
-                }}
-              >
-                <CopyIcon className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Copy link" onClick={copyLink}>
+                    <LinkIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy link</TooltipContent>
+              </Tooltip>
             </div>
           ) : null}
 
@@ -326,6 +358,7 @@ function DocumentsWorkspace({
             sortKey={sortKey}
             sortDir={sortDir}
             view={view}
+            canEdit={canEdit}
             uploading={uploadingNames.length > 0}
             onFilter={setFilter}
             onSortKey={setSortKey}
@@ -350,83 +383,210 @@ function DocumentsWorkspace({
             }}
           />
 
-          {isLoading ? (
-            <div className="flex flex-col gap-2" aria-busy>
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : folderMissing ? (
-            <EmptyState
-              title="Folder not found"
-              description="This folder may have been moved or deleted."
-            />
-          ) : visibleNodes.length === 0 && uploadingNames.length === 0 ? (
-            <EmptyState
-              title={isSearchActive ? `No results for "${activeSearch}"` : 'This folder is empty'}
-              description={
-                isSearchActive
-                  ? 'Try a shorter name fragment or clear search.'
-                  : 'Create a subfolder or upload PDF files.'
-              }
-              action={
-                <Button onClick={() => fileInputRef.current?.click()}>
-                  <UploadIcon className="size-4" />
-                  Upload PDF
-                </Button>
-              }
-            />
-          ) : view === 'list' ? (
-            <DocumentTable
-              nodes={visibleNodes}
-              uploadingNames={uploadingNames}
-              selectedIds={selectedIds}
-              usersById={usersById}
-              memberCount={memberCount}
-              onSelect={handleRowClick}
-              onOpen={openNode}
-              onToggleAll={() =>
-                setSelectedIds((current) =>
-                  visibleNodes.every((node) => current.has(node.id))
-                    ? new Set()
-                    : new Set(visibleNodes.map((node) => node.id)),
-                )
-              }
-              onRename={setRenameTarget}
-              onMove={(node) => setMoveTargets([node])}
-              onDelete={(node) => setDeleteTargets([node])}
-            />
-          ) : (
-            <DocumentGrid
-              nodes={visibleNodes}
-              selectedIds={selectedIds}
-              onSelect={handleRowClick}
-              onOpen={openNode}
-            />
-          )}
+          <ContextMenu>
+            <ContextMenuTrigger asChild onContextMenu={handleAreaContextMenu}>
+              <div className="flex flex-1 flex-col">
+                {isLoading ? (
+                  <div className="flex flex-col gap-2" aria-busy>
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : folderMissing ? (
+                  <EmptyState
+                    title="Folder not found"
+                    description="This folder may have been moved or deleted."
+                  />
+                ) : visibleNodes.length === 0 && uploadingNames.length === 0 ? (
+                  isSearchActive ? (
+                    <EmptyState
+                      title={`No results for "${activeSearch}"`}
+                      description="Try a shorter name fragment, or clear the search to see everything."
+                      action={
+                        <Button variant="outline" onClick={() => onSearchTermChange('')}>
+                          <XIcon className="size-4" />
+                          Clear search
+                        </Button>
+                      }
+                    />
+                  ) : filter !== 'all' && children.length > 0 ? (
+                    <EmptyState
+                      title={`No ${filter} here`}
+                      description={`This folder has items, but none match the "${filter}" filter.`}
+                      action={
+                        <Button variant="outline" onClick={() => setFilter('all')}>
+                          <FilterIcon className="size-4" />
+                          Clear filter
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <EmptyState
+                      title="This folder is empty"
+                      description={
+                        canEdit
+                          ? 'Create a subfolder or upload PDF files.'
+                          : 'Nothing has been added here yet.'
+                      }
+                      action={
+                        canEdit ? (
+                          <Button onClick={() => fileInputRef.current?.click()}>
+                            <UploadIcon className="size-4" />
+                            Upload PDF
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  )
+                ) : view === 'list' ? (
+                  <DocumentTable
+                    nodes={visibleNodes}
+                    uploadingNames={uploadingNames}
+                    selectedIds={selectedIds}
+                    usersById={usersById}
+                    memberCount={memberCount}
+                    canEdit={canEdit}
+                    selectNodeId={selectNodeId}
+                    isFavorite={(id) => favorites.isFavorite(dataroomId, id)}
+                    onToggleFavorite={(id) => favorites.toggle(dataroomId, id)}
+                    onReveal={revealNode}
+                    onToggleSelect={toggleSelect}
+                    onSelectRow={openPreview}
+                    onOpen={openNode}
+                    onToggleAll={() =>
+                      setSelectedIds((current) =>
+                        visibleNodes.every((node) => current.has(node.id))
+                          ? new Set()
+                          : new Set(visibleNodes.map((node) => node.id)),
+                      )
+                    }
+                    onRename={setRenameTarget}
+                    onMove={(node) => setMoveTargets([node])}
+                    onDelete={(node) => void trashNodes([node])}
+                  />
+                ) : (
+                  <DocumentGrid
+                    nodes={visibleNodes}
+                    selectedIds={selectedIds}
+                    canEdit={canEdit}
+                    selectNodeId={selectNodeId}
+                    isFavorite={(id) => favorites.isFavorite(dataroomId, id)}
+                    onToggleFavorite={(id) => favorites.toggle(dataroomId, id)}
+                    onReveal={revealNode}
+                    onToggleSelect={toggleSelect}
+                    onSelectRow={openPreview}
+                    onOpen={openNode}
+                  />
+                )}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-52">
+              {contextNode ? (
+                <>
+                  <ContextMenuItem onSelect={() => openNode(contextNode)}>
+                    {contextNode.type === 'folder' ? <FolderOpenIcon /> : <EyeIcon />}
+                    Open
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() =>
+                      contextNode && favorites.toggle(dataroomId, contextNode.id)
+                    }
+                  >
+                    <StarIcon />
+                    {contextNode && favorites.isFavorite(dataroomId, contextNode.id)
+                      ? 'Remove from favorites'
+                      : 'Add to favorites'}
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={copyLink}>
+                    <LinkIcon />
+                    Copy link
+                  </ContextMenuItem>
+                  {canEdit ? (
+                    <>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={() => setRenameTarget(contextNode)}>
+                        <PencilIcon />
+                        Rename
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => setMoveTargets([contextNode])}>
+                        <MoveIcon />
+                        Move
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
+                        variant="destructive"
+                        onSelect={() => void trashNodes([contextNode])}
+                      >
+                        <Trash2Icon />
+                        Move to trash
+                      </ContextMenuItem>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <ContextMenuLabel>{currentFolder?.name ?? dataroomName}</ContextMenuLabel>
+                  {canEdit ? (
+                    <>
+                      <ContextMenuItem
+                        onSelect={() => {
+                          createFolder.reset();
+                          setCreateFolderOpen(true);
+                        }}
+                      >
+                        <FolderPlusIcon />
+                        New folder
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => fileInputRef.current?.click()}>
+                        <UploadIcon />
+                        Upload PDF
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                    </>
+                  ) : null}
+                  <ContextMenuItem onSelect={selectAll} disabled={visibleNodes.length === 0}>
+                    <CheckSquareIcon />
+                    Select all
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={copyLink}>
+                    <LinkIcon />
+                    Copy link
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => void nodesQuery.refetch()}>
+                    <RefreshCwIcon />
+                    Refresh
+                  </ContextMenuItem>
+                </>
+              )}
+            </ContextMenuContent>
+          </ContextMenu>
         </div>
 
-        {selectedNodes.length > 0 ? (
+        {canEdit && selectedNodes.length > 0 ? (
           <BulkBar
             count={selectedNodes.length}
             onClear={() => setSelectedIds(new Set())}
             onMove={() => setMoveTargets(selectedNodes)}
-            onDelete={() => setDeleteTargets(selectedNodes)}
+            onDelete={() => void trashNodes(selectedNodes)}
           />
         ) : null}
       </section>
 
-      {selectedNode ? (
+      {previewNode ? (
         <DetailPanel
           dataroomId={dataroomId}
-          node={selectedNode}
+          node={previewNode}
           allNodes={nodes}
           usersById={usersById}
           memberCount={memberCount}
-          onClose={() => setSelectedIds(new Set())}
+          canEdit={canEdit}
+          isFavorite={favorites.isFavorite(dataroomId, previewNode.id)}
+          onToggleFavorite={() => favorites.toggle(dataroomId, previewNode.id)}
+          onClose={() => setPreviewNodeId(null)}
           onRename={setRenameTarget}
           onMove={(targets) => setMoveTargets(targets)}
-          onDelete={(targets) => setDeleteTargets(targets)}
+          onDelete={(targets) => void trashNodes(targets)}
+          onOpenFile={setViewerFile}
         />
       ) : null}
 
@@ -480,41 +640,12 @@ function DocumentsWorkspace({
         onMove={(parentId) => void confirmMove(parentId)}
       />
 
-      <MembersDialog dataroomId={dataroomId} open={membersOpen} onOpenChange={setMembersOpen} />
-
-      <AlertDialog
-        open={deleteTargets !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTargets(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete{' '}
-              {deleteTargets?.length === 1
-                ? `"${deleteTargets[0].name}"`
-                : `${deleteTargets?.length ?? 0} items`}
-              ?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteDescription(deleteTargets ?? [], nodes)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteNode.isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmDelete();
-              }}
-            >
-              {deleteNode.isPending ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <MembersDialog
+        dataroomId={dataroomId}
+        isOwner={isOwner}
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+      />
 
       <PdfViewerDialog file={viewerFile} onClose={() => setViewerFile(null)} />
     </main>
@@ -523,10 +654,10 @@ function DocumentsWorkspace({
 
 interface RoomHeaderProps {
   name: string;
+  kind: 'room' | 'folder';
   memberCount: number;
   isFavorite: boolean;
   searchTerm: string;
-  currentUser: UserDto | undefined;
   activity: readonly ActivityDto[];
   onToggleFavorite: () => void;
   onOpenMembers: () => void;
@@ -535,10 +666,10 @@ interface RoomHeaderProps {
 
 function RoomHeader({
   name,
+  kind,
   memberCount,
   isFavorite,
   searchTerm,
-  currentUser,
   activity,
   onToggleFavorite,
   onOpenMembers,
@@ -547,7 +678,11 @@ function RoomHeader({
   return (
     <header className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-4 border-b bg-card px-4 py-3 sm:px-6">
       <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-        <FolderIcon className="size-5" />
+        {kind === 'folder' ? (
+          <FolderFillIcon weight="fill" className="size-5" />
+        ) : (
+          <VaultIcon weight="fill" className="size-5" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -614,9 +749,7 @@ function RoomHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <span className="grid size-9 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-        {initials(currentUser?.name ?? '?')}
-      </span>
+      <UserMenu compact />
     </header>
   );
 }
@@ -626,6 +759,7 @@ interface ToolbarProps {
   sortKey: SortKey;
   sortDir: SortDir;
   view: ViewMode;
+  canEdit: boolean;
   uploading: boolean;
   onFilter: (filter: FilterMode) => void;
   onSortKey: (sortKey: SortKey) => void;
@@ -638,21 +772,32 @@ interface ToolbarProps {
 function Toolbar(props: Readonly<ToolbarProps>) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Upload / New Folder are for editors and owners; viewers see a read-only browser. */}
       <div className="flex items-center gap-2">
-        <Button onClick={props.onUpload} disabled={props.uploading}>
-          <UploadIcon className="size-4" />
-          {props.uploading ? 'Uploading...' : 'Upload'}
-        </Button>
-        <Button variant="outline" onClick={props.onCreateFolder}>
-          <FolderPlusIcon className="size-4" />
-          New Folder
-        </Button>
+        {props.canEdit ? (
+          <>
+            <Button onClick={props.onUpload} disabled={props.uploading}>
+              <UploadIcon className="size-4" />
+              {props.uploading ? 'Uploading...' : 'Upload'}
+            </Button>
+            <Button variant="outline" onClick={props.onCreateFolder}>
+              <FolderPlusIcon className="size-4" />
+              New Folder
+            </Button>
+          </>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              className={cn(
+                props.filter !== 'all' &&
+                  'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary',
+              )}
+            >
               <FilterIcon className="size-4" />
               {props.filter === 'all' ? 'All' : props.filter === 'folders' ? 'Folders' : 'Files'}
             </Button>
@@ -714,7 +859,13 @@ interface DocumentTableProps {
   selectedIds: ReadonlySet<string>;
   usersById: ReadonlyMap<string, UserDto>;
   memberCount: number;
-  onSelect: (node: DataroomNode, event: MouseEvent) => void;
+  canEdit: boolean;
+  selectNodeId?: string | null;
+  isFavorite: (nodeId: string) => boolean;
+  onToggleFavorite: (nodeId: string) => void;
+  onReveal: (node: DataroomNode, element: HTMLElement | null) => void;
+  onToggleSelect: (node: DataroomNode, extend: boolean) => void;
+  onSelectRow: (node: DataroomNode) => void;
   onOpen: (node: DataroomNode) => void;
   onToggleAll: () => void;
   onRename: (node: DataroomNode) => void;
@@ -722,19 +873,30 @@ interface DocumentTableProps {
   onDelete: (node: DataroomNode) => void;
 }
 
+const TABLE_GRID = 'grid-cols-[36px_minmax(260px,1.7fr)_160px_100px_160px_120px_84px]';
+
 function DocumentTable(props: Readonly<DocumentTableProps>) {
   const allSelected =
     props.nodes.length > 0 && props.nodes.every((node) => props.selectedIds.has(node.id));
+  const someSelected = props.nodes.some((node) => props.selectedIds.has(node.id));
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <div className="min-w-[920px]">
-        <div className="grid grid-cols-[36px_minmax(260px,1.7fr)_160px_100px_160px_130px_40px] items-center border-b px-3 py-3 text-xs font-semibold text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={props.onToggleAll}
-            aria-label="Select all"
-          />
+        <div
+          className={cn(
+            'grid items-center border-b px-3 py-3 text-xs font-semibold text-muted-foreground',
+            TABLE_GRID,
+          )}
+        >
+          {props.canEdit ? (
+            <Checkbox
+              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+              onCheckedChange={props.onToggleAll}
+              aria-label="Select all"
+            />
+          ) : (
+            <span />
+          )}
           <span>Name</span>
           <span>Updated</span>
           <span>Size</span>
@@ -750,9 +912,9 @@ function DocumentTable(props: Readonly<DocumentTableProps>) {
             key={name}
             className="grid grid-cols-[36px_minmax(260px,1.7fr)_1fr_40px] items-center border-t px-3 py-3"
           >
-            <input type="checkbox" disabled aria-label={`Uploading ${name}`} />
+            <Checkbox disabled aria-label={`Uploading ${name}`} />
             <div className="flex items-center gap-3">
-              <FileTextIcon className="size-5 text-destructive" />
+              <FilePdfIcon weight="fill" className="size-5 text-destructive" />
               <span className="truncate text-sm font-medium">{name}</span>
             </div>
             <Progress value={null} />
@@ -769,7 +931,13 @@ function DocumentRow({
   selectedIds,
   usersById,
   memberCount,
-  onSelect,
+  canEdit,
+  selectNodeId,
+  isFavorite,
+  onToggleFavorite,
+  onReveal,
+  onToggleSelect,
+  onSelectRow,
   onOpen,
   onRename,
   onMove,
@@ -779,27 +947,46 @@ function DocumentRow({
   const owner = node.createdBy ? usersById.get(node.createdBy) : undefined;
   return (
     <div
+      ref={node.id === selectNodeId ? (element) => onReveal(node, element) : undefined}
       role="button"
       tabIndex={0}
-      onClick={(event) => onSelect(node, event)}
+      data-node-id={node.id}
+      onClick={() => onSelectRow(node)}
       onDoubleClick={() => onOpen(node)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          onOpen(node);
+        }
+      }}
       className={cn(
-        'grid grid-cols-[36px_minmax(260px,1.7fr)_160px_100px_160px_130px_40px] items-center border-t px-3 py-2.5 text-sm hover:bg-accent/40',
+        'group grid cursor-pointer items-center border-t px-3 py-2.5 text-sm select-none hover:bg-accent/40',
+        TABLE_GRID,
         selected ? 'bg-primary/10' : undefined,
       )}
     >
-      <input
-        type="checkbox"
-        checked={selected}
-        aria-label={`Select ${node.name}`}
-        onChange={() => undefined}
-        onClick={(event) => event.stopPropagation()}
-      />
+      {canEdit ? (
+        <span
+          className="flex h-full w-full items-center"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Checkbox
+            checked={selected}
+            aria-label={`Select ${node.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleSelect(node, event.shiftKey);
+            }}
+          />
+        </span>
+      ) : (
+        <span />
+      )}
       <div className="flex min-w-0 items-center gap-3">
         {node.type === 'folder' ? (
-          <FolderIcon className="size-5 text-primary" />
+          <FolderFillIcon weight="fill" className="size-5 text-primary" />
         ) : (
-          <FileTextIcon className="size-5 text-destructive" />
+          <FilePdfIcon weight="fill" className="size-5 text-destructive" />
         )}
         <span className="truncate font-medium">{node.name}</span>
       </div>
@@ -809,8 +996,43 @@ function DocumentRow({
       </span>
       <span className="truncate">{owner?.name ?? '—'}</span>
       <span className="text-muted-foreground">{formatCount(memberCount, 'member')}</span>
-      <RowActions node={node} onRename={onRename} onMove={onMove} onDelete={onDelete} />
+      <span className="flex items-center justify-end gap-0.5">
+        <FavoriteButton
+          favorite={isFavorite(node.id)}
+          onToggle={() => onToggleFavorite(node.id)}
+        />
+        {canEdit ? (
+          <RowActions node={node} onRename={onRename} onMove={onMove} onDelete={onDelete} />
+        ) : null}
+      </span>
     </div>
+  );
+}
+
+/** Star toggle: always visible when starred, hover/focus-revealed otherwise. */
+function FavoriteButton({
+  favorite,
+  onToggle,
+}: Readonly<{ favorite: boolean; onToggle: () => void }>) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
+      aria-pressed={favorite}
+      className={cn(
+        'transition-opacity',
+        favorite ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      <StarIcon
+        className={cn('size-4', favorite ? 'fill-primary text-primary' : 'text-muted-foreground')}
+      />
+    </Button>
   );
 }
 
@@ -854,36 +1076,86 @@ function RowActions({
 function DocumentGrid({
   nodes,
   selectedIds,
-  onSelect,
+  canEdit,
+  selectNodeId,
+  isFavorite,
+  onToggleFavorite,
+  onReveal,
+  onToggleSelect,
+  onSelectRow,
   onOpen,
 }: Readonly<{
   nodes: readonly DataroomNode[];
   selectedIds: ReadonlySet<string>;
-  onSelect: (node: DataroomNode, event: MouseEvent) => void;
+  canEdit: boolean;
+  selectNodeId?: string | null;
+  isFavorite: (nodeId: string) => boolean;
+  onToggleFavorite: (nodeId: string) => void;
+  onReveal: (node: DataroomNode, element: HTMLElement | null) => void;
+  onToggleSelect: (node: DataroomNode, extend: boolean) => void;
+  onSelectRow: (node: DataroomNode) => void;
   onOpen: (node: DataroomNode) => void;
 }>) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
-      {nodes.map((node) => (
-        <button
-          key={node.id}
-          type="button"
-          onClick={(event) => onSelect(node, event)}
-          onDoubleClick={() => onOpen(node)}
-          className={cn(
-            'flex aspect-[4/3] flex-col items-start justify-between rounded-lg border bg-card p-4 text-left hover:bg-accent/40',
-            selectedIds.has(node.id) ? 'border-primary bg-primary/10' : undefined,
-          )}
-        >
-          {node.type === 'folder' ? (
-            <FolderIcon className="size-7 text-primary" />
-          ) : (
-            <FileTextIcon className="size-7 text-destructive" />
-          )}
-          <span className="line-clamp-2 text-sm font-medium">{node.name}</span>
-          <span className="text-xs text-muted-foreground">{formatDate(node.updatedAt)}</span>
-        </button>
-      ))}
+      {nodes.map((node) => {
+        const selected = selectedIds.has(node.id);
+        return (
+          <div
+            key={node.id}
+            ref={node.id === selectNodeId ? (element) => onReveal(node, element) : undefined}
+            role="button"
+            tabIndex={0}
+            data-node-id={node.id}
+            onClick={() => onSelectRow(node)}
+            onDoubleClick={() => onOpen(node)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                onOpen(node);
+              }
+            }}
+            className={cn(
+              'group relative flex aspect-[4/3] cursor-pointer flex-col items-start justify-between rounded-lg border bg-card p-4 text-left select-none hover:bg-accent/40',
+              selected ? 'border-primary bg-primary/10' : undefined,
+            )}
+          >
+            <span className="absolute top-1.5 left-1.5" onClick={(event) => event.stopPropagation()}>
+              <FavoriteButton
+                favorite={isFavorite(node.id)}
+                onToggle={() => onToggleFavorite(node.id)}
+              />
+            </span>
+            {canEdit ? (
+              <span
+                className={cn(
+                  'absolute top-2 right-2 transition-opacity',
+                  selected
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+                )}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selected}
+                  aria-label={`Select ${node.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleSelect(node, event.shiftKey);
+                  }}
+                />
+              </span>
+            ) : null}
+            {node.type === 'folder' ? (
+              <FolderFillIcon weight="fill" className="size-7 text-primary" />
+            ) : (
+              <FilePdfIcon weight="fill" className="size-7 text-destructive" />
+            )}
+            <span className="line-clamp-2 text-sm font-medium">{node.name}</span>
+            <span className="text-xs text-muted-foreground">{formatDate(node.updatedAt)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -895,22 +1167,32 @@ function BulkBar({
   onDelete,
 }: Readonly<{ count: number; onClear: () => void; onMove: () => void; onDelete: () => void }>) {
   return (
-    <div className="border-t bg-card px-6 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">{count} selected</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={onMove}>
-            <MoveIcon className="size-4" />
-            Move
-          </Button>
-          <Button variant="outline" className="text-destructive" onClick={onDelete}>
-            <Trash2Icon className="size-4" />
-            Delete
-          </Button>
-          <Button variant="ghost" onClick={onClear}>
-            Clear
-          </Button>
-        </div>
+    <div className="pointer-events-none absolute inset-x-0 bottom-24 z-30 flex justify-center px-4">
+      <div className="pointer-events-auto flex animate-in items-center gap-1 rounded-full border bg-card/95 py-1.5 pr-1.5 pl-4 shadow-lg fade-in slide-in-from-bottom-2 supports-[backdrop-filter]:bg-card/80 supports-[backdrop-filter]:backdrop-blur">
+        <span className="text-sm font-medium whitespace-nowrap">{count} selected</span>
+        <span className="mx-1.5 h-5 w-px bg-border" />
+        <Button variant="ghost" size="sm" className="rounded-full" onClick={onMove}>
+          <MoveIcon className="size-4" />
+          Move
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="rounded-full text-destructive hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2Icon className="size-4" />
+          Delete
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-full"
+          aria-label="Clear selection"
+          onClick={onClear}
+        >
+          <XIcon className="size-4" />
+        </Button>
       </div>
     </div>
   );
@@ -955,26 +1237,6 @@ function topLevelTargets(
   });
 }
 
-function deleteDescription(
-  targets: readonly DataroomNode[],
-  allNodes: readonly DataroomNode[],
-): string {
-  if (targets.length === 0) return 'Nothing selected.';
-  let folders = 0;
-  let files = 0;
-  for (const target of topLevelTargets(targets, allNodes)) {
-    if (target.type === 'folder') {
-      folders += 1;
-      const counts = subtreeCounts(allNodes, target.id);
-      folders += counts.folders;
-      files += counts.files;
-    } else {
-      files += 1;
-    }
-  }
-  return `This permanently deletes ${formatCount(folders, 'folder')} and ${formatCount(files, 'file')}. This cannot be undone.`;
-}
-
 function activityText(entry: ActivityDto): string {
   const labels: Record<ActivityDto['action'], string> = {
     'dataroom.created': 'Data room created',
@@ -983,17 +1245,10 @@ function activityText(entry: ActivityDto): string {
     'node.renamed': 'Renamed',
     'node.moved': 'Moved',
     'node.deleted': 'Deleted',
+    'node.restored': 'Restored',
     'member.added': 'Member added',
     'member.removed': 'Member removed',
+    'member.updated': 'Member updated',
   };
   return entry.nodeName ? `${labels[entry.action]} - ${entry.nodeName}` : labels[entry.action];
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
 }

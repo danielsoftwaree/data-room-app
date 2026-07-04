@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createDataroom, createFolderViaUi, deleteDataroom, uniqueName } from '../src/helpers';
 
-test('navigates nested folders, survives reload, and deletes a subtree with impact copy', async ({
+test('navigates nested folders, survives reload, and moves a subtree to the trash', async ({
   page,
   request,
 }) => {
@@ -22,9 +22,8 @@ test('navigates nested folders, survives reload, and deletes a subtree with impa
 
     await page.goto(`/datarooms/${dataroom.id}`);
     await page.getByLabel('Actions for Root Folder').click();
+    // Deleting moves the whole subtree to the trash immediately - no confirm dialog.
     await page.getByRole('menuitem', { name: 'Delete' }).click();
-    await expect(page.getByText('2 folder(s) and 0 file(s)')).toBeVisible();
-    await page.getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByText('Root Folder').first()).toBeHidden();
   } finally {
     await deleteDataroom(request, dataroom.id);

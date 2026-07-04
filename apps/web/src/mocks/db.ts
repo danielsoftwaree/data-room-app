@@ -5,6 +5,7 @@
  */
 import { faker } from '@faker-js/faker';
 import { STORAGE_QUOTA_BYTES, UPLOAD } from '@repo/config';
+import type { DataroomDto, EmptyTrashResult, TrashItemDto } from '@repo/contracts';
 import type {
   ActivityAction,
   Dataroom,
@@ -21,6 +22,8 @@ import {
   isNameTaken,
   NODE_NAME_MAX_LENGTH,
   nextAvailableName,
+  roleAtLeast,
+  selectTrashRoots,
   sortNodes,
   validateMoveTarget,
   validateNodeName,
@@ -104,6 +107,10 @@ const CLOCK_START = new Date('2026-06-01T09:00:00Z').getTime();
 faker.seed(FAKER_SEED);
 let clock = CLOCK_START;
 
+// While seeding, node creation skips the editor-role check: the seed represents
+// historical uploads by people who had access at the time, not live requests.
+let seeding = false;
+
 function tick(): number {
   clock += faker.number.int({ min: 60_000, max: 6 * 3_600_000 });
   return clock;
@@ -146,17 +153,65 @@ export function listUsers(): User[] {
   return [...DEMO_USERS].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function listDatarooms(): Dataroom[] {
-  return [...datarooms].sort((a, b) => b.updatedAt - a.updatedAt);
+// --- Access control (mirrors WorkspaceService.assert* on the real API) ---
+
+function roleOf(dataroomId: string, userId: string): MemberRole | null {
+  return members.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null;
 }
 
-export function getDataroom(id: string): Dataroom {
+/** A non-member gets a 404 (never a 403) so hidden rooms stay hidden. */
+function requireMember(dataroomId: string, userId: string): MemberRole {
+  const role = roleOf(dataroomId, userId);
+  if (!role) throw new MockError(404, 'Data room not found');
+  return role;
+}
+
+function requireRole(dataroomId: string, userId: string, min: MemberRole): MemberRole {
+  const role = requireMember(dataroomId, userId);
+  if (!roleAtLeast(role, min)) throw new MockError(403, `This action requires ${min} access`);
+  return role;
+}
+
+function countOwners(dataroomId: string): number {
+  return members.filter((m) => m.dataroomId === dataroomId && m.role === 'owner').length;
+}
+
+/** Existence-only lookup for internal use (favorites, activity denormalization). */
+function requireDataroom(id: string): Dataroom {
   const dataroom = datarooms.find((d) => d.id === id);
   if (!dataroom) throw new MockError(404, 'Data room not found');
   return dataroom;
 }
 
-export function createDataroom(rawName: string, userId: string): Dataroom {
+function toDataroomDto(dataroom: Dataroom, myRole: MemberRole): DataroomDto {
+  const roomMembers = members.filter((m) => m.dataroomId === dataroom.id);
+  const ownerMember = roomMembers
+    .filter((m) => m.role === 'owner')
+    .sort((a, b) => a.createdAt - b.createdAt)[0];
+  return {
+    ...dataroom,
+    myRole,
+    memberCount: roomMembers.length,
+    owner: ownerMember ? getUser(ownerMember.userId) : null,
+  };
+}
+
+export function listDatarooms(userId: string): DataroomDto[] {
+  return datarooms
+    .map((dataroom) => {
+      const role = roleOf(dataroom.id, userId);
+      return role ? toDataroomDto(dataroom, role) : null;
+    })
+    .filter((dto): dto is DataroomDto => dto !== null)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function getDataroom(id: string, userId: string): DataroomDto {
+  const role = requireMember(id, userId);
+  return toDataroomDto(requireDataroom(id), role);
+}
+
+export function createDataroom(rawName: string, userId: string): DataroomDto {
   const name = requireName(rawName);
   if (
     isNameTaken(
@@ -187,11 +242,12 @@ export function createDataroom(rawName: string, userId: string): Dataroom {
     createdAt: ts,
   });
   persist();
-  return dataroom;
+  return toDataroomDto(dataroom, 'owner');
 }
 
-export function renameDataroom(id: string, rawName: string, userId: string): Dataroom {
-  const dataroom = getDataroom(id);
+export function renameDataroom(id: string, rawName: string, userId: string): DataroomDto {
+  const role = requireRole(id, userId, 'owner');
+  const dataroom = requireDataroom(id);
   const name = requireName(rawName);
   const others = datarooms.filter((d) => d.id !== id).map((d) => d.name);
   if (isNameTaken(others, name)) {
@@ -201,11 +257,11 @@ export function renameDataroom(id: string, rawName: string, userId: string): Dat
   dataroom.updatedAt = tick();
   dataroom.updatedBy = userId;
   persist();
-  return dataroom;
+  return toDataroomDto(dataroom, role);
 }
 
-export function deleteDataroom(id: string): { deletedNodeIds: string[] } {
-  getDataroom(id);
+export function deleteDataroom(id: string, userId: string): { deletedNodeIds: string[] } {
+  requireRole(id, userId, 'owner');
   const deletedNodeIds = nodes.filter((n) => n.dataroomId === id).map((n) => n.id);
   removeNodes(new Set(deletedNodeIds));
   removeWhere(members, (member) => member.dataroomId === id);
@@ -218,12 +274,13 @@ export function deleteDataroom(id: string): { deletedNodeIds: string[] } {
 
 export function listNodes(
   dataroomId: string,
+  userId: string,
   options: { nameContains?: string | null } = {},
 ): DataroomNode[] {
-  getDataroom(dataroomId);
+  requireMember(dataroomId, userId);
   const term = options.nameContains?.trim().toLocaleLowerCase();
   return sortNodes(
-    nodes.filter(
+    liveNodes().filter(
       (n) => n.dataroomId === dataroomId && (!term || n.name.toLocaleLowerCase().includes(term)),
     ),
   );
@@ -235,7 +292,7 @@ export function createFolder(
   rawName: string,
   userId: string,
 ): FolderNode {
-  getDataroom(dataroomId);
+  if (!seeding) requireRole(dataroomId, userId, 'editor');
   assertParentFolder(dataroomId, parentId);
   const name = requireName(rawName);
   if (isNameTaken(siblingNames(dataroomId, parentId), name)) {
@@ -252,6 +309,8 @@ export function createFolder(
     updatedAt: ts,
     createdBy: userId,
     updatedBy: userId,
+    deletedAt: null,
+    deletedBy: null,
   };
   nodes.push(folder);
   touchDataroom(dataroomId, ts, userId);
@@ -267,7 +326,7 @@ export function createFile(
     { originalName: string; size: number; contentType: string; bytes: Uint8Array } | undefined,
   userId: string,
 ): FileNode {
-  getDataroom(dataroomId);
+  if (!seeding) requireRole(dataroomId, userId, 'editor');
   assertParentFolder(dataroomId, parentId);
   assertPdfUpload(upload);
 
@@ -285,6 +344,8 @@ export function createFile(
     updatedAt: ts,
     createdBy: userId,
     updatedBy: userId,
+    deletedAt: null,
+    deletedBy: null,
   };
   nodes.push(file);
   fileContents.set(file.id, { contentType: 'application/pdf', bytes: upload.bytes });
@@ -295,7 +356,8 @@ export function createFile(
 }
 
 export function renameNode(id: string, rawName: string, userId: string): DataroomNode {
-  const node = getNode(id);
+  const node = getLiveNode(id);
+  requireRole(node.dataroomId, userId, 'editor');
   const name = requireName(rawName);
   if (isNameTaken(siblingNames(node.dataroomId, node.parentId, node.id), name)) {
     throw new MockError(409, `"${name}" already exists in this folder`);
@@ -310,8 +372,9 @@ export function renameNode(id: string, rawName: string, userId: string): Dataroo
 }
 
 export function moveNode(id: string, parentId: string | null, userId: string): DataroomNode {
-  const node = getNode(id);
-  const dataroomNodes = nodes.filter((candidate) => candidate.dataroomId === node.dataroomId);
+  const node = getLiveNode(id);
+  requireRole(node.dataroomId, userId, 'editor');
+  const dataroomNodes = liveNodes().filter((candidate) => candidate.dataroomId === node.dataroomId);
   const validation = validateMoveTarget(dataroomNodes, id, parentId);
   if (!validation.ok) throw moveError(validation.error);
   node.name = nextAvailableName(siblingNames(node.dataroomId, parentId, node.id), node.name);
@@ -324,32 +387,140 @@ export function moveNode(id: string, parentId: string | null, userId: string): D
   return node;
 }
 
+/** Move a node and its subtree to the trash. Blobs and favorites are kept. */
 export function deleteNode(id: string, userId: string): { deletedIds: string[] } {
-  const node = getNode(id);
+  const node = getLiveNode(id);
+  requireRole(node.dataroomId, userId, 'editor');
   const deletedIds = collectSubtreeIds(
-    nodes.filter((n) => n.dataroomId === node.dataroomId),
+    liveNodes().filter((n) => n.dataroomId === node.dataroomId),
     id,
   );
-  recordNodeActivity(node, 'node.deleted', userId, tick());
+  const ts = tick();
+  const deletedIdSet = new Set(deletedIds);
+  for (const candidate of nodes) {
+    if (deletedIdSet.has(candidate.id)) {
+      candidate.deletedAt = ts;
+      candidate.deletedBy = userId;
+    }
+  }
+  recordNodeActivity(node, 'node.deleted', userId, ts);
+  touchDataroom(node.dataroomId, ts, userId);
+  persist();
+  return { deletedIds };
+}
+
+/** Bring a trashed subtree back — to its parent, or the room root if that is gone. */
+export function restoreNode(id: string, userId: string): DataroomNode {
+  const node = getAnyNode(id);
+  if (node.deletedAt === null) throw new MockError(404, 'Trashed item not found');
+  requireRole(node.dataroomId, userId, 'editor');
+
+  const parent = node.parentId ? nodes.find((n) => n.id === node.parentId) : null;
+  const targetParentId = parent && parent.deletedAt === null ? node.parentId : null;
+  const name = nextAvailableName(siblingNames(node.dataroomId, targetParentId, node.id), node.name);
+
+  const subtreeIds = new Set(
+    collectSubtreeIds(
+      nodes.filter((n) => n.dataroomId === node.dataroomId && n.deletedAt !== null),
+      id,
+    ),
+  );
+  const ts = tick();
+  for (const candidate of nodes) {
+    if (subtreeIds.has(candidate.id)) {
+      candidate.deletedAt = null;
+      candidate.deletedBy = null;
+    }
+  }
+  node.parentId = targetParentId;
+  node.name = name;
+  node.updatedAt = ts;
+  node.updatedBy = userId;
+  touchDataroom(node.dataroomId, ts, userId);
+  recordNodeActivity(node, 'node.restored', userId, ts);
+  persist();
+  return node;
+}
+
+/** Permanently delete a trashed subtree: rows, favorites, and blobs. */
+export function purgeNode(id: string, userId: string): { deletedIds: string[] } {
+  const node = getAnyNode(id);
+  if (node.deletedAt === null) throw new MockError(404, 'Trashed item not found');
+  requireRole(node.dataroomId, userId, 'editor');
+  const deletedIds = collectSubtreeIds(
+    nodes.filter((n) => n.dataroomId === node.dataroomId && n.deletedAt !== null),
+    id,
+  );
   removeNodes(new Set(deletedIds));
   touchDataroom(node.dataroomId, tick(), userId);
   persist();
   return { deletedIds };
 }
 
-export function getFileContent(id: string): {
+export function listTrash(userId: string): TrashItemDto[] {
+  const roomRole = new Map(
+    members.filter((m) => m.userId === userId).map((m) => [m.dataroomId, m.role] as const),
+  );
+  const deleted = nodes.filter((n) => n.deletedAt !== null && roomRole.has(n.dataroomId));
+  return selectTrashRoots(deleted)
+    .map((root) => {
+      const room = datarooms.find((d) => d.id === root.dataroomId);
+      const myRole = roomRole.get(root.dataroomId);
+      if (!room || !myRole) return null;
+      const itemCount = collectSubtreeIds(deleted, root.id).length - 1;
+      return {
+        id: root.id,
+        dataroomId: root.dataroomId,
+        dataroomName: room.name,
+        parentId: root.parentId,
+        type: root.type,
+        name: root.name,
+        size: root.type === 'file' ? root.size : null,
+        deletedAt: root.deletedAt ?? 0,
+        deletedBy: root.deletedBy ? getUser(root.deletedBy) : null,
+        itemCount,
+        myRole,
+      } satisfies TrashItemDto;
+    })
+    .filter((item): item is TrashItemDto => item !== null)
+    .sort((a, b) => b.deletedAt - a.deletedAt);
+}
+
+export function emptyTrash(userId: string): EmptyTrashResult {
+  const editableRooms = new Set(
+    members
+      .filter((m) => m.userId === userId && roleAtLeast(m.role, 'editor'))
+      .map((m) => m.dataroomId),
+  );
+  const deleted = nodes.filter((n) => n.deletedAt !== null && editableRooms.has(n.dataroomId));
+  const deletedIds: string[] = [];
+  for (const root of selectTrashRoots(deleted)) {
+    deletedIds.push(...collectSubtreeIds(deleted, root.id));
+  }
+  removeNodes(new Set(deletedIds));
+  persist();
+  return { deletedIds };
+}
+
+export function getFileContent(
+  id: string,
+  userId: string,
+): {
   name: string;
   contentType: string;
   bytes: Uint8Array;
 } {
   const node = nodes.find((n) => n.id === id);
   const stored = fileContents.get(id);
-  if (!node || node.type !== 'file' || !stored) throw new MockError(404, 'File not found');
+  if (!node || node.type !== 'file' || node.deletedAt !== null || !stored) {
+    throw new MockError(404, 'File not found');
+  }
+  requireMember(node.dataroomId, userId);
   return { name: node.name, contentType: stored.contentType, bytes: stored.bytes };
 }
 
-export function listMembers(dataroomId: string): DataroomMember[] {
-  getDataroom(dataroomId);
+export function listMembers(dataroomId: string, actorId: string): DataroomMember[] {
+  requireMember(dataroomId, actorId);
   return members
     .filter((member) => member.dataroomId === dataroomId)
     .map(toMember)
@@ -362,8 +533,9 @@ export function addMember(
   role: MemberRole,
   actorId: string,
 ): DataroomMember {
-  getDataroom(dataroomId);
+  requireRole(dataroomId, actorId, 'owner');
   getUser(userId);
+  if (roleOf(dataroomId, userId)) throw new MockError(409, 'This person is already a member');
   const ts = tick();
   const stored = addMemberInternal(dataroomId, userId, role, ts);
   recordActivityInternal({
@@ -379,8 +551,39 @@ export function addMember(
   return toMember(stored);
 }
 
+export function updateMemberRole(
+  dataroomId: string,
+  userId: string,
+  role: MemberRole,
+  actorId: string,
+): DataroomMember {
+  requireRole(dataroomId, actorId, 'owner');
+  const current = members.find((m) => m.dataroomId === dataroomId && m.userId === userId);
+  if (!current) throw new MockError(404, 'Member not found');
+  if (current.role === 'owner' && role !== 'owner' && countOwners(dataroomId) <= 1) {
+    throw new MockError(400, 'A data room must keep at least one owner');
+  }
+  current.role = role;
+  recordActivityInternal({
+    dataroomId,
+    nodeId: null,
+    nodeName: null,
+    nodeType: null,
+    action: 'member.updated',
+    actorId,
+    createdAt: tick(),
+  });
+  persist();
+  return toMember(current);
+}
+
 export function removeMember(dataroomId: string, userId: string, actorId: string): void {
-  getDataroom(dataroomId);
+  requireRole(dataroomId, actorId, 'owner');
+  const current = roleOf(dataroomId, userId);
+  if (!current) return;
+  if (current === 'owner' && countOwners(dataroomId) <= 1) {
+    throw new MockError(400, 'A data room must keep at least one owner');
+  }
   removeWhere(members, (member) => member.dataroomId === dataroomId && member.userId === userId);
   recordActivityInternal({
     dataroomId,
@@ -397,14 +600,20 @@ export function removeMember(dataroomId: string, userId: string, actorId: string
 export function listFavorites(userId: string) {
   return favorites
     .filter((favorite) => favorite.userId === userId)
+    .filter((favorite) => roleOf(favorite.dataroomId, userId) !== null)
+    .filter((favorite) => {
+      if (favorite.nodeId === null) return true;
+      const node = nodes.find((n) => n.id === favorite.nodeId);
+      return !node || node.deletedAt === null;
+    })
     .sort((a, b) => b.createdAt - a.createdAt)
     .map(toFavoriteDto);
 }
 
 export function addFavorite(userId: string, dataroomId: string, nodeId: string | null) {
-  getDataroom(dataroomId);
+  requireMember(dataroomId, userId);
   if (nodeId !== null) {
-    const node = getNode(nodeId);
+    const node = getLiveNode(nodeId);
     if (node.dataroomId !== dataroomId) throw new MockError(404, 'Favorite target not found');
   }
   const existing = favorites.find(
@@ -433,9 +642,10 @@ export function removeFavorite(userId: string, dataroomId: string, nodeId: strin
 
 export function listActivity(
   dataroomId: string,
+  actorId: string,
   options: { nodeId?: string | null; limit?: number } = {},
 ) {
-  getDataroom(dataroomId);
+  requireMember(dataroomId, actorId);
   const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
   return activity
     .filter(
@@ -480,7 +690,19 @@ function assertPdfUpload(
   if (!okExt || !okMime || !okSignature) throw new MockError(400, 'Only PDF files are allowed');
 }
 
-function getNode(id: string): DataroomNode {
+/** Live (non-trashed) nodes — every normal listing hides the trash. */
+function liveNodes(): DataroomNode[] {
+  return nodes.filter((n) => n.deletedAt === null);
+}
+
+function getLiveNode(id: string): DataroomNode {
+  const node = nodes.find((n) => n.id === id && n.deletedAt === null);
+  if (!node) throw new MockError(404, 'Node not found');
+  return node;
+}
+
+/** Includes trashed nodes — for restore/purge which operate on the trash. */
+function getAnyNode(id: string): DataroomNode {
   const node = nodes.find((n) => n.id === id);
   if (!node) throw new MockError(404, 'Node not found');
   return node;
@@ -493,14 +715,21 @@ function getUser(id: string): User {
 }
 
 function siblingNames(dataroomId: string, parentId: string | null, exceptId?: string): string[] {
+  // Trashed siblings never collide — the DB unique index is live-only.
   return nodes
-    .filter((n) => n.dataroomId === dataroomId && n.parentId === parentId && n.id !== exceptId)
+    .filter(
+      (n) =>
+        n.dataroomId === dataroomId &&
+        n.parentId === parentId &&
+        n.deletedAt === null &&
+        n.id !== exceptId,
+    )
     .map((n) => n.name);
 }
 
 function assertParentFolder(dataroomId: string, parentId: string | null): void {
   if (parentId === null) return;
-  const parent = nodes.find((n) => n.id === parentId);
+  const parent = nodes.find((n) => n.id === parentId && n.deletedAt === null);
   if (!parent || parent.dataroomId !== dataroomId) {
     throw new MockError(404, 'Parent folder not found');
   }
@@ -556,7 +785,7 @@ function recordActivityInternal(input: Omit<PersistedActivity, 'id'>): void {
 }
 
 function toFavoriteDto(favorite: PersistedFavorite) {
-  const dataroom = getDataroom(favorite.dataroomId);
+  const dataroom = requireDataroom(favorite.dataroomId);
   const node = favorite.nodeId ? nodes.find((candidate) => candidate.id === favorite.nodeId) : null;
   return {
     dataroomId: dataroom.id,
@@ -617,8 +846,22 @@ function removeWhere<T>(items: T[], predicate: (item: T) => boolean): void {
 }
 
 function seed(): void {
+  seeding = true;
+  try {
+    seedData();
+  } finally {
+    seeding = false;
+  }
+}
+
+function seedData(): void {
   const owner = DEMO_USERS[0].id;
   const titan = createDataroom('Project Titan - Due Diligence', owner);
+  // Members added up front so historical uploads can be attributed to them.
+  addMember(titan.id, DEMO_USERS[1].id, 'editor', owner);
+  addMember(titan.id, DEMO_USERS[2].id, 'viewer', owner);
+  addMember(titan.id, DEMO_USERS[3].id, 'viewer', owner);
+
   const financials = createFolder(titan.id, null, 'Financials', owner);
   const legal = createFolder(titan.id, null, 'Legal', DEMO_USERS[1].id);
   createFolder(titan.id, null, 'Product', DEMO_USERS[2].id);
@@ -629,7 +872,7 @@ function seed(): void {
   createFile(titan.id, financials.id, sampleUpload('FY2025 Overview.pdf'), owner);
   createFile(titan.id, statements.id, sampleUpload('Q1 Balance Sheet.pdf'), owner);
   createFile(titan.id, statements.id, sampleUpload('Q2 Balance Sheet.pdf'), DEMO_USERS[1].id);
-  createFile(titan.id, statements.id, sampleUpload('Cash Flow.pdf'), DEMO_USERS[2].id);
+  const cashFlow = createFile(titan.id, statements.id, sampleUpload('Cash Flow.pdf'), owner);
 
   const contracts = createFolder(titan.id, legal.id, 'Contracts', DEMO_USERS[1].id);
   createFile(titan.id, legal.id, sampleUpload('NDA.pdf'), DEMO_USERS[1].id);
@@ -640,11 +883,10 @@ function seed(): void {
     DEMO_USERS[4].id,
   );
   createFile(titan.id, contracts.id, sampleUpload('SOW-001.pdf'), DEMO_USERS[5].id);
-  addMember(titan.id, DEMO_USERS[1].id, 'editor', owner);
-  addMember(titan.id, DEMO_USERS[2].id, 'viewer', owner);
-  addMember(titan.id, DEMO_USERS[3].id, 'viewer', owner);
   addFavorite(owner, titan.id, null);
   addFavorite(owner, titan.id, financials.id);
+  // One item already in the trash so the Trash view is not empty on first run.
+  deleteNode(cashFlow.id, owner);
 
   const acme = createDataroom('Acme Acquisition', DEMO_USERS[1].id);
   createFolder(acme.id, null, 'Diligence', DEMO_USERS[1].id);

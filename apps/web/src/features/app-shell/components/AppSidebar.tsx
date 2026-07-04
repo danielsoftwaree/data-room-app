@@ -1,62 +1,50 @@
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   getApiErrorMessage,
-  useGetMe,
   useGetStorageUsage,
   useListDatarooms,
   useListFavorites,
-  useListUsers,
+  useListTrash,
 } from '@repo/api-client';
-import type { FavoriteDto, UserDto } from '@repo/api-client';
+import type { FavoriteDto } from '@repo/api-client';
+import { Badge } from '@repo/ui/components/badge';
 import { Button } from '@repo/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@repo/ui/components/dropdown-menu';
 import { Progress } from '@repo/ui/components/progress';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { cn } from '@repo/ui/lib/utils';
-import {
-  ArchiveIcon,
-  DatabaseIcon,
-  FolderIcon,
-  HardDriveIcon,
-  LayoutGridIcon,
-  PlusIcon,
-  StarIcon,
-} from 'lucide-react';
+import { FilePdfIcon, FolderIcon, VaultIcon } from '@phosphor-icons/react';
+import { HardDriveIcon, LayoutGridIcon, PlusIcon, StarIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { NameDialog } from '../../../shared/NameDialog';
-import { ThemeToggle } from '../../../shared/ThemeToggle';
+import { UserMenu } from '../../../shared/UserMenu';
 import { formatFileSize } from '../../../shared/format';
 import { useCreateDataroom } from '../../datarooms/hooks';
+
+type NavTo = '/' | '/favorites' | '/trash';
 
 type NavItem = {
   label: string;
   icon: typeof LayoutGridIcon;
-  to: '/';
+  to: NavTo;
 };
 
-/** Only shipped destinations: the brief calls for no unimplemented features. */
 const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Data Rooms', icon: LayoutGridIcon, to: '/' },
+  { label: 'Favorites', icon: StarIcon, to: '/favorites' },
+  { label: 'Trash', icon: Trash2Icon, to: '/trash' },
 ] as const;
+
+const FAVORITES_PREVIEW = 6;
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const datarooms = useListDatarooms();
   const rooms = datarooms.data?.data ?? [];
   const favorites = useListFavorites();
+  const trash = useListTrash();
+  const trashCount = trash.data?.data.length ?? 0;
   const storage = useGetStorageUsage();
-  const me = useGetMe();
-  const users = useListUsers();
   const createDataroom = useCreateDataroom();
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -65,16 +53,11 @@ export function AppSidebar() {
     ? Math.min(100, Math.round((storageUsage.usedBytes / storageUsage.quotaBytes) * 100))
     : 0;
 
-  function switchUser(user: UserDto): void {
-    localStorage.setItem('demo-user-id', user.id);
-    void queryClient.invalidateQueries();
-  }
-
   return (
     <aside className="sticky top-0 z-20 flex max-h-[28rem] w-full shrink-0 flex-col border-b bg-card lg:h-screen lg:max-h-none lg:w-[248px] lg:border-r lg:border-b-0">
       <Link to="/" className="flex h-16 items-center gap-3 border-b px-5">
         <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
-          <DatabaseIcon className="size-5" />
+          <VaultIcon weight="fill" className="size-5" />
         </span>
         <span className="font-display text-base font-extrabold tracking-tight">Data Room</span>
       </Link>
@@ -94,7 +77,7 @@ export function AppSidebar() {
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = item.to === '/' && pathname === '/';
+            const active = pathname === item.to;
             return (
               <Link
                 key={item.label}
@@ -107,7 +90,12 @@ export function AppSidebar() {
                 )}
               >
                 <Icon className="size-4" />
-                <span className="truncate">{item.label}</span>
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.to === '/trash' && trashCount > 0 ? (
+                  <Badge variant="secondary" className="tabular-nums">
+                    {trashCount}
+                  </Badge>
+                ) : null}
               </Link>
             );
           })}
@@ -125,9 +113,21 @@ export function AppSidebar() {
             ) : favorites.data.data.length === 0 ? (
               <p className="px-1 text-sm text-muted-foreground">No favorites yet</p>
             ) : (
-              favorites.data.data
-                .slice(0, 6)
-                .map((favorite) => <FavoriteLink key={favoriteKey(favorite)} favorite={favorite} />)
+              <>
+                {favorites.data.data
+                  .slice(0, FAVORITES_PREVIEW)
+                  .map((favorite) => (
+                    <FavoriteLink key={favoriteKey(favorite)} favorite={favorite} />
+                  ))}
+                {favorites.data.data.length > FAVORITES_PREVIEW ? (
+                  <Link
+                    to="/favorites"
+                    className="px-2 py-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    View all {favorites.data.data.length}
+                  </Link>
+                ) : null}
+              </>
             )}
           </div>
         </div>
@@ -150,38 +150,7 @@ export function AppSidebar() {
       </div>
 
       <div className="border-t p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-auto w-full justify-start gap-3 px-2 py-2">
-              <UserAvatar user={me.data?.data} />
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate text-sm font-semibold">
-                  {me.data?.data.name ?? 'Demo user'}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {me.data?.data.email ?? 'Switch identity'}
-                </span>
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64">
-            <DropdownMenuLabel>Demo identity</DropdownMenuLabel>
-            {(users.data?.data ?? []).map((user) => (
-              <DropdownMenuItem key={user.id} onSelect={() => switchUser(user)}>
-                <UserAvatar user={user} />
-                <span className="min-w-0">
-                  <span className="block truncate">{user.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-                </span>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-              <ThemeToggle />
-              Theme
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserMenu />
       </div>
 
       <NameDialog
@@ -215,9 +184,12 @@ export function AppSidebar() {
 
 function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
   const label = favorite.nodeName ?? favorite.dataroomName;
-  const icon =
-    favorite.nodeId === null ? StarIcon : favorite.nodeType === 'folder' ? FolderIcon : ArchiveIcon;
-  const Icon = icon;
+  const Icon =
+    favorite.nodeId === null
+      ? VaultIcon
+      : favorite.nodeType === 'folder'
+        ? FolderIcon
+        : FilePdfIcon;
   const className =
     'flex h-9 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground';
   if (favorite.nodeType === 'folder' && favorite.nodeId) {
@@ -232,58 +204,33 @@ function FavoriteLink({ favorite }: Readonly<{ favorite: FavoriteDto }>) {
       </Link>
     );
   }
+  // A favorited file opens its containing folder (or the room root) with the file
+  // preselected via ?select, so it is scrolled to and highlighted on arrival.
+  const select = favorite.nodeType === 'file' && favorite.nodeId ? { select: favorite.nodeId } : {};
+  if (favorite.nodeType === 'file' && favorite.parentId) {
+    return (
+      <Link
+        to="/datarooms/$dataroomId/folders/$folderId"
+        params={{ dataroomId: favorite.dataroomId, folderId: favorite.parentId }}
+        search={select}
+        className={className}
+      >
+        <Icon weight="fill" className="size-4" />
+        <span className="truncate">{label}</span>
+      </Link>
+    );
+  }
   return (
     <Link
-      to={
-        favorite.nodeType === 'file' && favorite.parentId
-          ? '/datarooms/$dataroomId/folders/$folderId'
-          : '/datarooms/$dataroomId'
-      }
-      params={
-        favorite.nodeType === 'file' && favorite.parentId
-          ? { dataroomId: favorite.dataroomId, folderId: favorite.parentId }
-          : { dataroomId: favorite.dataroomId }
-      }
+      to="/datarooms/$dataroomId"
+      params={{ dataroomId: favorite.dataroomId }}
+      search={select}
       className={className}
     >
-      <Icon className="size-4" />
+      <Icon weight="fill" className="size-4" />
       <span className="truncate">{label}</span>
     </Link>
   );
-}
-
-function UserAvatar({ user }: Readonly<{ user: UserDto | undefined }>) {
-  return (
-    <span
-      className={cn(
-        'grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white',
-        avatarColorClass(user?.color),
-      )}
-    >
-      {initials(user?.name ?? '?')}
-    </span>
-  );
-}
-
-function avatarColorClass(color: string | undefined): string {
-  const classes: Record<string, string> = {
-    '#5865f2': 'bg-primary',
-    '#35ed7e': 'bg-emerald-400 text-foreground',
-    '#a78bfa': 'bg-violet-400',
-    '#f6c956': 'bg-yellow-400 text-foreground',
-    '#ec48bd': 'bg-pink-500',
-    '#00b0f4': 'bg-sky-500',
-  };
-  return classes[color ?? ''] ?? 'bg-primary';
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
 }
 
 function favoriteKey(favorite: FavoriteDto): string {

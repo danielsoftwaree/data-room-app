@@ -7,6 +7,7 @@ import {
   HttpCode,
   Inject,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -21,6 +22,7 @@ import {
   MemberDto,
   StorageUsageDto,
   ToggleFavoriteDto,
+  UpdateMemberDto,
   UserDto,
 } from './dto';
 
@@ -43,8 +45,12 @@ export class WorkspaceController {
 
   @Get('datarooms/:id/members')
   @ApiOkResponse({ type: [MemberDto] })
-  listMembers(@Param('id') id: string): Promise<MemberDto[]> {
-    return this.workspace.listMembers(id);
+  async listMembers(
+    @Param('id') id: string,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<MemberDto[]> {
+    const actorId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.workspace.listMembers(id, actorId);
   }
 
   @Post('datarooms/:id/members')
@@ -56,6 +62,18 @@ export class WorkspaceController {
   ): Promise<MemberDto> {
     const actorId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
     return this.workspace.addMember(id, actorId, body.userId, body.role);
+  }
+
+  @Patch('datarooms/:id/members/:userId')
+  @ApiOkResponse({ type: MemberDto })
+  async updateMember(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() body: UpdateMemberDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
+  ): Promise<MemberDto> {
+    const actorId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.workspace.updateMemberRole(id, actorId, userId, body.role);
   }
 
   @Delete('datarooms/:id/members/:userId')
@@ -102,11 +120,13 @@ export class WorkspaceController {
 
   @Get('datarooms/:id/activity')
   @ApiOkResponse({ type: [ActivityDto] })
-  listActivity(
+  async listActivity(
     @Param('id') id: string,
     @Query() query: ListActivityQueryDto,
+    @Headers('x-user-id') rawUserId?: string | string[],
   ): Promise<ActivityDto[]> {
-    return this.workspace.listActivity(id, {
+    const actorId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
+    return this.workspace.listActivity(id, actorId, {
       nodeId: query.nodeId?.trim() || undefined,
       limit: query.limit,
     });

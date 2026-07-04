@@ -3,15 +3,21 @@ import { IsOptional, IsString } from 'class-validator';
 import type {
   CreateDataroomRequest,
   CreateFolderRequest,
+  DataroomDto as DataroomContract,
   DeleteDataroomResult,
   DeleteNodeResult,
+  EmptyTrashResult,
   MoveNodeRequest,
   RenameNodeRequest,
+  TrashItemDto as TrashItemContract,
   UploadFileRequest,
 } from '@repo/contracts';
-import type { Dataroom } from '@repo/domain';
+import type { MemberRole, NodeType } from '@repo/domain';
+import { UserDto } from '../../workspace/http/dto';
 
-export class DataroomDto implements Dataroom {
+const MEMBER_ROLES = ['owner', 'editor', 'viewer'] as const;
+
+export class DataroomDto implements DataroomContract {
   @ApiProperty()
   id!: string;
 
@@ -29,6 +35,15 @@ export class DataroomDto implements Dataroom {
 
   @ApiProperty({ type: String, nullable: true })
   updatedBy!: string | null;
+
+  @ApiProperty({ enum: MEMBER_ROLES, description: "The caller's role in this room" })
+  myRole!: MemberRole;
+
+  @ApiProperty({ description: 'Number of members with access' })
+  memberCount!: number;
+
+  @ApiProperty({ type: UserDto, nullable: true, description: 'Earliest-added owner' })
+  owner!: UserDto | null;
 }
 
 export class NodeDto {
@@ -65,6 +80,47 @@ export class NodeDto {
 
   @ApiProperty({ type: String, nullable: true })
   updatedBy!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true, description: 'Unix epoch ms; null when live' })
+  deletedAt!: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deletedBy!: string | null;
+}
+
+export class TrashItemDto implements TrashItemContract {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  dataroomId!: string;
+
+  @ApiProperty()
+  dataroomName!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  parentId!: string | null;
+
+  @ApiProperty({ enum: ['folder', 'file'] })
+  type!: NodeType;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ type: Number, nullable: true, description: 'File size in bytes; null for folders' })
+  size!: number | null;
+
+  @ApiProperty({ description: 'Unix epoch ms' })
+  deletedAt!: number;
+
+  @ApiProperty({ type: UserDto, nullable: true })
+  deletedBy!: UserDto | null;
+
+  @ApiProperty({ description: 'Folders + files contained within (0 for files)' })
+  itemCount!: number;
+
+  @ApiProperty({ enum: MEMBER_ROLES })
+  myRole!: MemberRole;
 }
 
 export class CreateDataroomDto implements CreateDataroomRequest {
@@ -126,5 +182,10 @@ export class DeleteDataroomResultDto implements DeleteDataroomResult {
 
 export class DeleteNodeResultDto implements DeleteNodeResult {
   @ApiProperty({ type: [String], description: 'Ids of the node and all of its descendants' })
+  deletedIds!: string[];
+}
+
+export class EmptyTrashResultDto implements EmptyTrashResult {
+  @ApiProperty({ type: [String], description: 'Ids of every purged node' })
   deletedIds!: string[];
 }

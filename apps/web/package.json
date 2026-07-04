@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@repo/api-client": "workspace:*",
     "@repo/config": "workspace:*",
     "@repo/contracts": "workspace:*",
@@ -18,8 +19,10 @@
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.17",
     "lucide-react": "1.23.0",
+    "pdfjs-dist": "5.4.296",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-pdf": "^10.4.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.5.0",

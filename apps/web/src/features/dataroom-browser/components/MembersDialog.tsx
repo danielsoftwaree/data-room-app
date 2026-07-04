@@ -2,13 +2,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   getApiErrorMessage,
   getListActivityQueryKey,
+  getListDataroomsQueryKey,
   getListMembersQueryKey,
   useAddMember,
   useListMembers,
   useListUsers,
   useRemoveMember,
+  useUpdateMember,
 } from '@repo/api-client';
-import type { UserDto } from '@repo/api-client';
+import type { MemberDtoRole } from '@repo/api-client';
 import { Button } from '@repo/ui/components/button';
 import {
   Dialog,
@@ -18,29 +20,61 @@ import {
   DialogTitle,
 } from '@repo/ui/components/dialog';
 import { Label } from '@repo/ui/components/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@repo/ui/components/select';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { toast } from '@repo/ui/components/sonner';
-import { cn } from '@repo/ui/lib/utils';
 import { UserPlusIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
+import { UserAvatar } from '../../../shared/UserAvatar';
 
 interface MembersDialogProps {
   dataroomId: string;
+  isOwner: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function MembersDialog({ dataroomId, open, onOpenChange }: Readonly<MembersDialogProps>) {
+const ROLE_OPTIONS: readonly MemberDtoRole[] = ['viewer', 'editor', 'owner'];
+
+export function MembersDialog({
+  dataroomId,
+  isOwner,
+  open,
+  onOpenChange,
+}: Readonly<MembersDialogProps>) {
   const queryClient = useQueryClient();
   const members = useListMembers(dataroomId);
   const users = useListUsers();
+
+  const invalidate = (): void => {
+    void queryClient.invalidateQueries({ queryKey: getListMembersQueryKey(dataroomId) });
+    void queryClient.invalidateQueries({ queryKey: getListActivityQueryKey(dataroomId) });
+    void queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
+  };
+  const onError = (error: unknown) => toast.error(getApiErrorMessage(error));
+
   const addMember = useAddMember({
     mutation: {
       onSuccess: () => {
         toast.success('Member added');
         invalidate();
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      onError,
+    },
+  });
+  const updateMember = useUpdateMember({
+    mutation: {
+      onSuccess: () => {
+        toast.success('Role updated');
+        invalidate();
+      },
+      onError,
     },
   });
   const removeMember = useRemoveMember({
@@ -49,130 +83,143 @@ export function MembersDialog({ dataroomId, open, onOpenChange }: Readonly<Membe
         toast.success('Member removed');
         invalidate();
       },
-      onError: (error) => toast.error(getApiErrorMessage(error)),
+      onError,
     },
   });
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [role, setRole] = useState<'owner' | 'editor' | 'viewer'>('viewer');
 
-  const memberIds = new Set((members.data?.data ?? []).map((member) => member.user.id));
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [role, setRole] = useState<MemberDtoRole>('viewer');
+
+  const memberList = members.data?.data ?? [];
+  const ownerCount = memberList.filter((member) => member.role === 'owner').length;
+  const memberIds = new Set(memberList.map((member) => member.user.id));
   const availableUsers = (users.data?.data ?? []).filter((user) => !memberIds.has(user.id));
   const userId = selectedUserId || availableUsers[0]?.id || '';
-
-  function invalidate(): void {
-    void queryClient.invalidateQueries({ queryKey: getListMembersQueryKey(dataroomId) });
-    void queryClient.invalidateQueries({ queryKey: getListActivityQueryKey(dataroomId) });
-  }
+  const busy = updateMember.isPending || removeMember.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Members</DialogTitle>
-          <DialogDescription>Demo access list for this data room.</DialogDescription>
+          <DialogDescription>
+            {isOwner
+              ? 'Owners can change roles and add or remove people.'
+              : 'Who has access to this data room.'}
+          </DialogDescription>
         </DialogHeader>
 
         {members.isPending ? (
           <div className="flex flex-col gap-2" aria-busy>
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
           </div>
         ) : members.isError ? (
           <p className="text-sm text-destructive">{getApiErrorMessage(members.error)}</p>
         ) : (
-          <ul className="flex max-h-64 flex-col gap-2 overflow-auto">
-            {members.data.data.map((member) => (
-              <li key={member.user.id} className="flex items-center gap-3 rounded-lg border p-3">
-                <MemberAvatar user={member.user} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{member.user.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
-                </div>
-                <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground capitalize">
-                  {member.role}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Remove ${member.user.name}`}
-                  disabled={removeMember.isPending}
-                  onClick={() => removeMember.mutate({ id: dataroomId, userId: member.user.id })}
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              </li>
-            ))}
+          <ul className="flex max-h-72 flex-col gap-2 overflow-auto">
+            {memberList.map((member) => {
+              const lastOwner = member.role === 'owner' && ownerCount <= 1;
+              return (
+                <li key={member.user.id} className="flex items-center gap-3 rounded-lg border p-3">
+                  <UserAvatar user={member.user} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{member.user.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                  </div>
+                  {isOwner ? (
+                    <>
+                      <Select
+                        value={member.role}
+                        disabled={lastOwner || busy}
+                        onValueChange={(value) =>
+                          updateMember.mutate({
+                            id: dataroomId,
+                            userId: member.user.id,
+                            data: { role: value as MemberDtoRole },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-[104px]" aria-label={`Role for ${member.user.name}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLE_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option} className="capitalize">
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove ${member.user.name}`}
+                        disabled={lastOwner || busy}
+                        onClick={() =>
+                          removeMember.mutate({ id: dataroomId, userId: member.user.id })
+                        }
+                      >
+                        <XIcon className="size-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground capitalize">
+                      {member.role}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
 
-        <div className="grid gap-3 rounded-lg border bg-background/60 p-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="member-user">Add member</Label>
-            <select
-              id="member-user"
-              value={userId}
-              onChange={(event) => setSelectedUserId(event.currentTarget.value)}
-              className="h-9 rounded-md border bg-background px-3 text-sm"
-              disabled={availableUsers.length === 0}
+        {isOwner ? (
+          <div className="grid gap-3 rounded-lg border bg-background/60 p-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="member-user">Add member</Label>
+              <Select
+                value={userId || undefined}
+                onValueChange={setSelectedUserId}
+                disabled={availableUsers.length === 0}
+              >
+                <SelectTrigger id="member-user">
+                  <SelectValue placeholder="Everyone already has access" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="member-role">Role</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as MemberDtoRole)}>
+                <SelectTrigger id="member-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option} className="capitalize">
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              disabled={!userId || addMember.isPending}
+              onClick={() => addMember.mutate({ id: dataroomId, data: { userId, role } })}
             >
-              {availableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
+              <UserPlusIcon className="size-4" />
+              {addMember.isPending ? 'Adding...' : 'Add member'}
+            </Button>
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="member-role">Role</Label>
-            <select
-              id="member-role"
-              value={role}
-              onChange={(event) => setRole(event.currentTarget.value as typeof role)}
-              className="h-9 rounded-md border bg-background px-3 text-sm"
-            >
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
-              <option value="owner">Owner</option>
-            </select>
-          </div>
-          <Button
-            disabled={!userId || addMember.isPending}
-            onClick={() => addMember.mutate({ id: dataroomId, data: { userId, role } })}
-          >
-            <UserPlusIcon className="size-4" />
-            {addMember.isPending ? 'Adding...' : 'Add member'}
-          </Button>
-        </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
-}
-
-function MemberAvatar({ user }: Readonly<{ user: UserDto }>) {
-  return (
-    <span
-      className={cn(
-        'grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white',
-        avatarColorClass(user.color),
-      )}
-    >
-      {user.name
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase() ?? '')
-        .join('')}
-    </span>
-  );
-}
-
-function avatarColorClass(color: string): string {
-  const classes: Record<string, string> = {
-    '#5865f2': 'bg-primary',
-    '#35ed7e': 'bg-emerald-400 text-foreground',
-    '#a78bfa': 'bg-violet-400',
-    '#f6c956': 'bg-yellow-400 text-foreground',
-    '#ec48bd': 'bg-pink-500',
-    '#00b0f4': 'bg-sky-500',
-  };
-  return classes[color] ?? 'bg-primary';
 }

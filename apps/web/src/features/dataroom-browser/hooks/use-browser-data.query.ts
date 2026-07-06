@@ -6,8 +6,8 @@ import {
   useListNodes,
   useListUsers,
 } from '@repo/api-client';
-import { toDataroomNode } from '@/shared/lib/api-adapters';
-import { childrenOf, findNode, folderPath } from '@/shared/lib/node-tree';
+import { toDataroomNode } from '../helpers/api-adapters';
+import { childrenOf, findNode, folderPath } from '../helpers/node-tree';
 
 /**
  * Every server read the browser screen needs, adapted to domain types and

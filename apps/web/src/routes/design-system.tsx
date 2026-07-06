@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { DesignSystemScreen } from '../features/design-system';
+import { DesignSystemScreen } from '@/features/design-system';
 
 export const Route = createFileRoute('/design-system')({
   // Dev-only component showcase: redirect away in production so no demo

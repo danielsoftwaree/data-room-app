@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { DataroomNode } from '@repo/domain';
-import { findNode } from '@/shared/lib/node-tree';
+import { findNode } from '../helpers/node-tree';
 
 interface UseNodePreviewOptions {
   nodes: readonly DataroomNode[];

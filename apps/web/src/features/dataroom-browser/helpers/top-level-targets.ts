@@ -1,5 +1,5 @@
 import type { DataroomNode } from '@repo/domain';
-import { findNode } from '@/shared/lib/node-tree';
+import { findNode } from './node-tree';
 
 /**
  * Keep only targets whose ancestors are not themselves selected, so a bulk

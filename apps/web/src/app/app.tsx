@@ -1,6 +1,6 @@
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
-import { routeTree } from '../routeTree.gen';
+import { routeTree } from '@/routeTree.gen';
 
 /**
  * App shell. Route-to-feature wiring is file-based under src/routes/*

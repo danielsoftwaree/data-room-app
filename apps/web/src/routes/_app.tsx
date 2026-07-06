@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { AppSidebar } from '../features/app-shell';
+import { AppSidebar } from '@/features/app-shell';
 
 export const Route = createFileRoute('/_app')({
   component: AppLayout,

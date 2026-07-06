@@ -124,7 +124,8 @@ Dependency direction is one-way (full rules in `docs/monorepo.md`):
 
 ## Frontend
 
-- Vertical feature modules: `src/app` (shell/providers) -> `src/features/<name>` (public entry via `index.ts`; see `src/features/README.md`) -> `src/shared`. Cross-feature imports only through a feature's `index.ts`; features never import from `src/app`.
+- The owning spec for web layout, import direction, and file placement is `apps/web/README.md` (details per area: `src/features/README.md`, `src/shared/README.md`) — read it before adding or moving web files.
+- Vertical feature modules: `src/app` (shell/providers) -> `src/features/<name>` (public entry via `index.ts`) -> `src/shared`. Cross-feature imports only through a feature's `index.ts`; features never import from `src/app`.
 - Follow existing component structure and state patterns: server state via generated TanStack Query hooks only; local UI state via React state. No extra state managers.
 - Invalidate queries with generated key helpers (`getListDataroomsQueryKey()` etc.) after mutations.
 - Handle all four states wherever data is fetched: loading, error, empty, success. Empty states get a CTA — this repo is judged on UX first.

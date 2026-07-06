@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { TooltipProvider } from '@repo/ui/components/tooltip';
-import { LandingScreen } from '../features/landing';
+import { LandingScreen } from '@/features/landing';
 import { useAuthTokenBridge } from './use-auth-token-bridge';
 
 const queryClient = new QueryClient();

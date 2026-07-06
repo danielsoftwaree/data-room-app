@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { DataroomBrowserScreen, validateBrowserSearch } from '../features/dataroom-browser';
+import { DataroomBrowserScreen, validateBrowserSearch } from '@/features/dataroom-browser';
 
 export const Route = createFileRoute('/_app/datarooms/$dataroomId/folders/$folderId')({
   validateSearch: validateBrowserSearch,

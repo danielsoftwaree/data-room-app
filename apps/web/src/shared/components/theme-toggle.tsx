@@ -1,6 +1,6 @@
 import { Button } from '@repo/ui/components/button';
 import { MoonIcon, SunIcon } from 'lucide-react';
-import { useUiStore } from './ui-store';
+import { useUiStore } from '@/shared/store/ui-store';
 
 export function ThemeToggle() {
   const isDark = useUiStore((state) => state.theme === 'dark');

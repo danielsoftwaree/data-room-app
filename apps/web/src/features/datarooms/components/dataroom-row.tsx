@@ -12,8 +12,8 @@ import {
 import { cn } from '@repo/ui/lib/utils';
 import { VaultIcon } from '@phosphor-icons/react';
 import { MoreVerticalIcon, PencilIcon, StarIcon, Trash2Icon } from 'lucide-react';
-import { formatCount, formatDate } from '../../../shared/format';
-import { UserAvatar } from '../../../shared/UserAvatar';
+import { formatCount, formatDate } from '@/shared/lib/format';
+import { UserAvatar } from '@/shared/components/user-avatar';
 
 /** A single data room row: click to open, with owner, access, favorite, and owner-only actions. */
 export function DataroomRow({
@@ -67,7 +67,10 @@ export function DataroomRow({
         onClick={onToggleFavorite}
       >
         <StarIcon
-          className={cn('size-4', isFavorite ? 'fill-primary text-primary' : 'text-muted-foreground')}
+          className={cn(
+            'size-4',
+            isFavorite ? 'fill-primary text-primary' : 'text-muted-foreground',
+          )}
         />
       </Button>
 

@@ -22,6 +22,11 @@ function stripMswWorker(): Plugin {
 }
 
 export default defineConfig({
+  resolve: {
+    // `@/` → src/: keeps cross-directory imports (@/shared, @/features) free of
+    // ../../.. chains. Mirrored in tsconfig.json `paths`.
+    alias: { '@': path.resolve(import.meta.dirname, 'src') },
+  },
   plugins: [
     tanstackRouter({
       target: 'react',

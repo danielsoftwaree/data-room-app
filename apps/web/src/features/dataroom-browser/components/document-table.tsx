@@ -13,7 +13,7 @@ import { Progress } from '@repo/ui/components/progress';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
 import { MoreVerticalIcon, MoveIcon, PencilIcon, Trash2Icon, XIcon } from 'lucide-react';
-import { formatCount, formatDate, formatFileSize } from '../../../shared/format';
+import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
 interface DocumentTableProps {
@@ -160,10 +160,7 @@ function DocumentRow({
       <span className="truncate">{owner?.name ?? '\u2014'}</span>
       <span className="text-muted-foreground">{formatCount(memberCount, 'member')}</span>
       <span className="flex items-center justify-end gap-0.5">
-        <FavoriteButton
-          favorite={isFavorite(node.id)}
-          onToggle={() => onToggleFavorite(node.id)}
-        />
+        <FavoriteButton favorite={isFavorite(node.id)} onToggle={() => onToggleFavorite(node.id)} />
         {canEdit ? (
           <RowActions node={node} onRename={onRename} onMove={onMove} onDelete={onDelete} />
         ) : null}

@@ -12,8 +12,8 @@ import { Input } from '@repo/ui/components/input';
 import { cn } from '@repo/ui/lib/utils';
 import { FolderIcon as FolderFillIcon, VaultIcon } from '@phosphor-icons/react';
 import { BellIcon, SearchIcon, StarIcon, UsersIcon } from 'lucide-react';
-import { UserMenu } from '../../../shared/UserMenu';
-import { formatCount } from '../../../shared/format';
+import { UserMenu } from '@/shared/components/user-menu';
+import { formatCount } from '@/shared/lib/format';
 import { activityLabel } from '../helpers/activity-label';
 
 interface RoomHeaderProps {

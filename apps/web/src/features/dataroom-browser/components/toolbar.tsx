@@ -15,7 +15,13 @@ import {
   ListIcon,
   UploadIcon,
 } from 'lucide-react';
-import { SORT_LABELS, type FilterMode, type SortDir, type SortKey, type ViewMode } from '../types';
+import type { FilterMode, SortDir, SortKey, ViewMode } from '../types';
+
+const SORT_LABELS: Record<SortKey, string> = {
+  name: 'Name',
+  updated: 'Updated',
+  size: 'Size',
+};
 
 interface ToolbarProps {
   filter: FilterMode;

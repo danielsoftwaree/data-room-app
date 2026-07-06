@@ -9,7 +9,7 @@ import {
 } from '@repo/api-client';
 import type { Dataroom } from '@repo/domain';
 import { nextAvailableName } from '@repo/domain';
-import { makePdfBytes } from '../../shared/pdf';
+import { makePdfBytes } from '@/shared/lib/pdf';
 
 /**
  * "Create sample data room" builds a realistic Acme due-diligence structure by

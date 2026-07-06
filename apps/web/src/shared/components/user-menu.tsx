@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useClerk, useUser } from '@clerk/clerk-react';
 import { useGetMe, useListUsers } from '@repo/api-client';
 import type { UserDto } from '@repo/api-client';
-import { Avatar, AvatarFallback } from '@repo/ui/components/avatar';
 import { Button } from '@repo/ui/components/button';
 import {
   DropdownMenu,
@@ -13,9 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@repo/ui/components/dropdown-menu';
-import { cn } from '@repo/ui/lib/utils';
 import { LogOutIcon, RotateCcwIcon } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
+import { ThemeToggle } from './theme-toggle';
+import { UserAvatar } from './user-avatar';
 
 /**
  * Auth is on only when a Clerk key is configured. `authEnabled` is a build-time
@@ -183,35 +182,4 @@ function ResetDemoButton() {
       <RotateCcwIcon className="size-4" />
     </Button>
   );
-}
-
-export function UserAvatar({ user }: Readonly<{ user: UserDto | undefined }>) {
-  return (
-    <Avatar className="size-8">
-      <AvatarFallback className={cn('text-xs font-bold text-white', avatarColorClass(user?.color))}>
-        {initials(user?.name ?? '?')}
-      </AvatarFallback>
-    </Avatar>
-  );
-}
-
-function avatarColorClass(color: string | undefined): string {
-  const classes: Record<string, string> = {
-    '#5865f2': 'bg-primary',
-    '#35ed7e': 'bg-emerald-400 text-foreground',
-    '#a78bfa': 'bg-violet-400',
-    '#f6c956': 'bg-yellow-400 text-foreground',
-    '#ec48bd': 'bg-pink-500',
-    '#00b0f4': 'bg-sky-500',
-  };
-  return classes[color ?? ''] ?? 'bg-primary';
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
 }

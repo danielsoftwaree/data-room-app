@@ -2,7 +2,7 @@ import type { DataroomNode } from '@repo/domain';
 import { Checkbox } from '@repo/ui/components/checkbox';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
-import { formatDate } from '../../../shared/format';
+import { formatDate } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
 interface DocumentGridProps {
@@ -54,7 +54,10 @@ export function DocumentGrid({
               selected ? 'border-primary bg-primary/10' : undefined,
             )}
           >
-            <span className="absolute top-1.5 left-1.5" onClick={(event) => event.stopPropagation()}>
+            <span
+              className="absolute top-1.5 left-1.5"
+              onClick={(event) => event.stopPropagation()}
+            >
               <FavoriteButton
                 favorite={isFavorite(node.id)}
                 onToggle={() => onToggleFavorite(node.id)}

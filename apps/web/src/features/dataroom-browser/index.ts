@@ -4,3 +4,4 @@
  * The app shell imports ONLY from this barrel.
  */
 export { DataroomBrowserScreen } from './components/dataroom-browser-screen';
+export { validateBrowserSearch, type BrowserSearch } from './helpers/browser-search';

@@ -1,1 +1,1 @@
-export { LandingScreen } from './components/LandingScreen';
+export { LandingScreen } from './components/landing-screen';

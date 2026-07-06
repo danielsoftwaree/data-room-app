@@ -11,7 +11,7 @@ import {
 } from '@repo/ui/components/dialog';
 import { FolderIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { childrenOf } from '../../../shared/node-tree';
+import { childrenOf } from '@/shared/lib/node-tree';
 import { cn } from '@repo/ui/lib/utils';
 
 interface MoveDialogProps {

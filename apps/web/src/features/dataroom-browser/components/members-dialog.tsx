@@ -1,15 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  getApiErrorMessage,
-  getListActivityQueryKey,
-  getListDataroomsQueryKey,
-  getListMembersQueryKey,
-  useAddMember,
-  useListMembers,
-  useListUsers,
-  useRemoveMember,
-  useUpdateMember,
-} from '@repo/api-client';
+import { getApiErrorMessage, useListMembers, useListUsers } from '@repo/api-client';
 import type { MemberDtoRole } from '@repo/api-client';
 import { Button } from '@repo/ui/components/button';
 import {
@@ -28,10 +17,10 @@ import {
   SelectValue,
 } from '@repo/ui/components/select';
 import { Skeleton } from '@repo/ui/components/skeleton';
-import { toast } from '@repo/ui/components/sonner';
 import { UserPlusIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
-import { UserAvatar } from '../../../shared/UserAvatar';
+import { UserAvatar } from '@/shared/components/user-avatar';
+import { useMemberMutations } from '../hooks/use-member-mutations.mutation';
 
 interface MembersDialogProps {
   dataroomId: string;
@@ -48,44 +37,9 @@ export function MembersDialog({
   open,
   onOpenChange,
 }: Readonly<MembersDialogProps>) {
-  const queryClient = useQueryClient();
   const members = useListMembers(dataroomId);
   const users = useListUsers();
-
-  const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: getListMembersQueryKey(dataroomId) });
-    void queryClient.invalidateQueries({ queryKey: getListActivityQueryKey(dataroomId) });
-    void queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
-  };
-  const onError = (error: unknown) => toast.error(getApiErrorMessage(error));
-
-  const addMember = useAddMember({
-    mutation: {
-      onSuccess: () => {
-        toast.success('Member added');
-        invalidate();
-      },
-      onError,
-    },
-  });
-  const updateMember = useUpdateMember({
-    mutation: {
-      onSuccess: () => {
-        toast.success('Role updated');
-        invalidate();
-      },
-      onError,
-    },
-  });
-  const removeMember = useRemoveMember({
-    mutation: {
-      onSuccess: () => {
-        toast.success('Member removed');
-        invalidate();
-      },
-      onError,
-    },
-  });
+  const { addMember, updateMember, removeMember } = useMemberMutations(dataroomId);
 
   const [selectedUserId, setSelectedUserId] = useState('');
   const [role, setRole] = useState<MemberDtoRole>('viewer');
@@ -140,7 +94,10 @@ export function MembersDialog({
                           })
                         }
                       >
-                        <SelectTrigger className="h-8 w-[104px]" aria-label={`Role for ${member.user.name}`}>
+                        <SelectTrigger
+                          className="h-8 w-[104px]"
+                          aria-label={`Role for ${member.user.name}`}
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

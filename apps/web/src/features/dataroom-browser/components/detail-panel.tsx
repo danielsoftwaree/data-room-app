@@ -8,10 +8,10 @@ import { Skeleton } from '@repo/ui/components/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/tabs';
 import { cn } from '@repo/ui/lib/utils';
 import { Maximize2Icon, PencilIcon, StarIcon, Trash2Icon, XIcon, MoveIcon } from 'lucide-react';
-import { childrenOf, folderPath, subtreeCounts } from '../../../shared/node-tree';
-import { formatCount, formatDate, formatFileSize } from '../../../shared/format';
-import { PdfDocument, PdfPage } from '../../../shared/pdf-viewer';
-import { useObjectUrl } from '../../../shared/use-object-url';
+import { childrenOf, folderPath, subtreeCounts } from '@/shared/lib/node-tree';
+import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
+import { PdfDocument, PdfPage } from '@/shared/lib/pdf-viewer';
+import { useObjectUrl } from '@/shared/hooks/use-object-url';
 import { activityLabel } from '../helpers/activity-label';
 
 interface DetailPanelProps {

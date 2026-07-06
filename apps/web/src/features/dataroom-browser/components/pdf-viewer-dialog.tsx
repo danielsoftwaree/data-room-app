@@ -5,9 +5,9 @@ import { Button } from '@repo/ui/components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui/components/dialog';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { MinusIcon, PlusIcon } from 'lucide-react';
-import { formatCount } from '../../../shared/format';
-import { PdfDocument, PdfPage } from '../../../shared/pdf-viewer';
-import { useObjectUrl } from '../../../shared/use-object-url';
+import { formatCount } from '@/shared/lib/format';
+import { PdfDocument, PdfPage } from '@/shared/lib/pdf-viewer';
+import { useObjectUrl } from '@/shared/hooks/use-object-url';
 
 /**
  * Modal PDF viewer rendered with react-pdf (pdf.js): every page, zoom

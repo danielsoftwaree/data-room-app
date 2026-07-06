@@ -12,6 +12,9 @@ import {
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
 
+/** The node-mutation bundle, as passed from the screen to browser components. */
+export type NodeMutations = ReturnType<typeof useNodeMutations>;
+
 /**
  * Node mutations for one data room, wired with cache invalidation + toasts.
  * `createFile` deliberately leaves error handling to the caller so multi-file

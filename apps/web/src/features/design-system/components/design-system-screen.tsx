@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/ta
 
 import { Link } from '@tanstack/react-router';
 
-import { colors, radii, spacing, typeScale } from '../lib/tokens';
+import { colors, radii, spacing, typeScale } from '../helpers/tokens';
 
 /**
  * Design System showcase page (light theme).

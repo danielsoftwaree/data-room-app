@@ -1,13 +1,13 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { Toaster } from '@repo/ui/components/sonner';
-import { useDarkTheme } from '../shared/theme';
+import { useUiStore } from '@/shared/store/ui-store';
 
 export const Route = createRootRoute({
   component: RootLayout,
 });
 
 function RootLayout() {
-  const isDark = useDarkTheme();
+  const isDark = useUiStore((state) => state.theme === 'dark');
   return (
     <>
       <Outlet />

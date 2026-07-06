@@ -9,7 +9,7 @@ import {
   useRenameDataroom as useRenameDataroomBase,
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
-import { createSampleDataroom } from './sample';
+import { createSampleDataroom } from '../sample';
 
 /** Invalidate everything that depends on the set of data rooms. */
 function useInvalidateDatarooms() {

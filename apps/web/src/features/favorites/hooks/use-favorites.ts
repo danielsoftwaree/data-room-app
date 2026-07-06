@@ -7,10 +7,7 @@ import {
   useRemoveFavorite,
 } from '@repo/api-client';
 import { toast } from '@repo/ui/components/sonner';
-
-function favoriteKey(dataroomId: string, nodeId: string | null): string {
-  return `${dataroomId}:${nodeId ?? 'room'}`;
-}
+import { favoriteKey } from '../helpers/favorite-key';
 
 /**
  * Star/unstar rooms and nodes from anywhere (table rows, grid, detail panel,
@@ -21,7 +18,9 @@ export function useFavorites() {
   const queryClient = useQueryClient();
   const favorites = useListFavorites();
   const keys = new Set(
-    (favorites.data?.data ?? []).map((favorite) => favoriteKey(favorite.dataroomId, favorite.nodeId)),
+    (favorites.data?.data ?? []).map((favorite) =>
+      favoriteKey(favorite.dataroomId, favorite.nodeId),
+    ),
   );
 
   const invalidate = () =>

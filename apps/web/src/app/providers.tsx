@@ -1,26 +1,17 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ClerkProvider, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
+import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { TooltipProvider } from '@repo/ui/components/tooltip';
-import { setAuthTokenGetter } from '@repo/api-client';
 import { LandingScreen } from '../features/landing';
+import { useAuthTokenBridge } from './use-auth-token-bridge';
 
 const queryClient = new QueryClient();
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
-/**
- * Registers Clerk's session-token getter with the API client so every
- * generated request carries `Authorization: Bearer <token>`. Kept in one
- * place; generated hooks stay untouched.
- */
+/** Wires the Clerk session token into the API client while signed in. */
 function AuthTokenBridge({ children }: { children: ReactNode }) {
-  const { getToken } = useAuth();
-  useEffect(() => {
-    setAuthTokenGetter(() => getToken());
-    return () => setAuthTokenGetter(null);
-  }, [getToken]);
+  useAuthTokenBridge();
   return <>{children}</>;
 }
 

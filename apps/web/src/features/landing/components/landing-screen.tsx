@@ -61,7 +61,7 @@ function Hero() {
         <SparklesIcon className="size-4" />
         Secure due-diligence, minus the friction
       </span>
-      <h1 className="font-discord-display text-5xl font-extrabold uppercase leading-[1.02] tracking-tight sm:text-7xl">
+      <h1 className="font-discord-display text-5xl leading-[1.02] font-extrabold tracking-tight uppercase sm:text-7xl">
         Your documents.
         <br />
         <span className="bg-gradient-to-r from-discord-primary via-violet-400 to-discord-magenta bg-clip-text text-transparent">
@@ -69,8 +69,8 @@ function Hero() {
         </span>
       </h1>
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-discord-ink/70">
-        Spin up a private data room in seconds. Organize folders, upload PDFs, invite your team,
-        and keep every sensitive file exactly where it belongs.
+        Spin up a private data room in seconds. Organize folders, upload PDFs, invite your team, and
+        keep every sensitive file exactly where it belongs.
       </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
         <SignUpButton mode="modal">
@@ -162,15 +162,23 @@ function Features() {
 }
 
 const STEPS = [
-  { n: '01', title: 'Sign up', body: 'Create your account and land straight in your organization.' },
-  { n: '02', title: 'Create a data room', body: 'Name it, and your private secure space is ready instantly.' },
+  {
+    n: '01',
+    title: 'Sign up',
+    body: 'Create your account and land straight in your organization.',
+  },
+  {
+    n: '02',
+    title: 'Create a data room',
+    body: 'Name it, and your private secure space is ready instantly.',
+  },
   { n: '03', title: 'Upload & share', body: 'Add folders and PDFs, invite the team, get to work.' },
 ];
 
 function Steps() {
   return (
     <section className="pb-16">
-      <h2 className="mb-8 text-center font-discord-display text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">
+      <h2 className="mb-8 text-center font-discord-display text-3xl font-extrabold tracking-tight uppercase sm:text-4xl">
         Up and running in 3 steps
       </h2>
       <div className="grid gap-5 sm:grid-cols-3">
@@ -191,7 +199,7 @@ function Steps() {
 function CtaBand() {
   return (
     <section className="mb-16 rounded-discord-xl bg-discord-primary px-8 py-14 text-center">
-      <h2 className="font-discord-display text-4xl font-extrabold uppercase leading-tight tracking-tight sm:text-5xl">
+      <h2 className="font-discord-display text-4xl leading-tight font-extrabold tracking-tight uppercase sm:text-5xl">
         Ready when you are
       </h2>
       <p className="mx-auto mt-4 max-w-xl text-lg text-discord-ink/80">
@@ -212,7 +220,7 @@ function CtaBand() {
 function Footer() {
   return (
     <footer className="border-t border-white/10 py-10">
-      <p className="text-center font-discord-display text-5xl font-extrabold uppercase tracking-tight text-white/10 sm:text-7xl">
+      <p className="text-center font-discord-display text-5xl font-extrabold tracking-tight text-white/10 uppercase sm:text-7xl">
         Data Room
       </p>
     </footer>
@@ -222,8 +230,8 @@ function Footer() {
 function BackdropMesh() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      <div className="absolute -left-32 -top-32 size-[36rem] rounded-full bg-discord-primary/30 blur-[120px]" />
-      <div className="absolute -right-40 top-40 size-[32rem] rounded-full bg-discord-magenta/20 blur-[120px]" />
+      <div className="absolute -top-32 -left-32 size-[36rem] rounded-full bg-discord-primary/30 blur-[120px]" />
+      <div className="absolute top-40 -right-40 size-[32rem] rounded-full bg-discord-magenta/20 blur-[120px]" />
       <div className="absolute bottom-0 left-1/3 size-[30rem] rounded-full bg-violet-600/20 blur-[120px]" />
     </div>
   );

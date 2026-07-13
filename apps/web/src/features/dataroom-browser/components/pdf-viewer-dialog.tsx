@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getApiErrorMessage, useGetNodeContent } from '@repo/api-client';
+import { getApiErrorMessage } from '@repo/api-client';
 import type { FileNode } from '@repo/domain';
 import { Button } from '@repo/ui/components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@repo/ui/components/dialog';
@@ -7,7 +7,7 @@ import { Skeleton } from '@repo/ui/components/skeleton';
 import { MinusIcon, PlusIcon } from 'lucide-react';
 import { formatCount } from '@/shared/lib/format';
 import { PdfDocument, PdfPage } from '@/shared/lib/pdf-viewer';
-import { useObjectUrl } from '@/shared/hooks/use-object-url';
+import { useNodeContent } from '../hooks/use-node-content.query';
 
 /**
  * Modal PDF viewer rendered with react-pdf (pdf.js): every page, zoom
@@ -40,9 +40,8 @@ const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 const BASE_PAGE_WIDTH = 800;
 
 function PdfContent({ file }: { file: FileNode }) {
-  const content = useGetNodeContent(file.id);
-  const blob = content.data?.data instanceof Blob ? content.data.data : null;
-  const objectUrl = useObjectUrl(blob);
+  const content = useNodeContent(file.id);
+  const objectUrl = content.objectUrl;
   const [pageCount, setPageCount] = useState(0);
   const [zoomIndex, setZoomIndex] = useState(2); // 100%
   const zoom = ZOOM_LEVELS[zoomIndex];

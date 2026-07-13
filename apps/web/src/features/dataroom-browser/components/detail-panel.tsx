@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getApiErrorMessage, useGetNodeContent, useListActivity } from '@repo/api-client';
+import { getApiErrorMessage, useListActivity } from '@repo/api-client';
 import type { UserDto } from '@repo/api-client';
 import type { DataroomNode, FileNode } from '@repo/domain';
 import { FilePdfIcon, FolderIcon } from '@phosphor-icons/react';
@@ -11,7 +11,7 @@ import { Maximize2Icon, PencilIcon, StarIcon, Trash2Icon, XIcon, MoveIcon } from
 import { childrenOf, folderPath, subtreeCounts } from '../helpers/node-tree';
 import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
 import { PdfDocument, PdfPage } from '@/shared/lib/pdf-viewer';
-import { useObjectUrl } from '@/shared/hooks/use-object-url';
+import { useNodeContent } from '../hooks/use-node-content.query';
 import { activityLabel } from '../helpers/activity-label';
 
 interface DetailPanelProps {
@@ -149,9 +149,8 @@ export function DetailPanel({
 
 /** Static first-page preview: no scrolling here — the full viewer opens on demand. */
 function PdfPreview({ file, onOpenFull }: Readonly<{ file: FileNode; onOpenFull: () => void }>) {
-  const content = useGetNodeContent(file.id);
-  const blob = content.data?.data instanceof Blob ? content.data.data : null;
-  const objectUrl = useObjectUrl(blob);
+  const content = useNodeContent(file.id);
+  const objectUrl = content.objectUrl;
   const [pageCount, setPageCount] = useState<number | null>(null);
 
   if (content.isPending) return <Skeleton className="h-[360px] w-full" />;

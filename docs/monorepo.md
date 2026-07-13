@@ -101,5 +101,5 @@ Rules that keep the repo navigable as it grows:
    repo-wide.
 
 Doc map: `docs/architecture.md` (components and decisions),
-`docs/monorepo.md` (this file), `docs/auth-clerk.md` (auth plan),
+`docs/monorepo.md` (this file),
 `docs/design-system/` (design notes), `README.md` (setup and deploy).

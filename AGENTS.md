@@ -31,8 +31,8 @@
   - `packages/config` — app-agnostic constants (API prefix, upload limits).
   - `tooling/*` — shared configs as workspace packages (`@repo/typescript-config`, `@repo/lint-config`, `@repo/format-config`, `@repo/tailwind-config`).
 - Entry points: `apps/web/src/main.tsx`, `apps/api/src/main.ts` (HTTP :3000), `apps/api/src/openapi.ts` (emits `openapi.json`, no listener).
-- Important directories: `docs/monorepo.md` (dependency rules + "Keeping order"), `docs/architecture.md`, `docs/design-system/` (design references), `tasks/` (one folder per work item: `tasks/<id>-<slug>/PLAN.md`), `tests/e2e/` (placeholder).
-- Auth: out of scope for the MVP; Clerk deps are intentionally not installed. `docs/auth-clerk.md` is a design sketch of how it'd be added. Do NOT add auth code or a login wall unless asked.
+- Important directories: `docs/monorepo.md` (dependency rules + "Keeping order"), `docs/architecture.md`, `docs/design-system/` (design references), `tests/e2e/` (Playwright e2e suite).
+- Auth: Clerk, optional by design. A global `ClerkAuthGuard` (`apps/api/src/shared/auth/`) verifies bearer tokens when `CLERK_SECRET_KEY` is set; without it the API falls back to a demo user so `bun run dev` stays zero-config.
 - Local development command: `bun run dev` (turbo runs web on :5173 with `/api` proxy → api on :3000).
 - Test command: `bun run test` (domain rules, api service + exception filter, HTTP e2e over fakes — no PostgreSQL required).
 - Typecheck/lint command: `bun run typecheck`, `bun run lint`, `bun run format:check`.
@@ -66,7 +66,7 @@ enforcement summary for agents. Violating these is never acceptable, even in a
 2. **Every new file has exactly one right home.** New api capability ->
    `apps/api/src/modules/<feature>/`; new web capability ->
    `apps/web/src/features/<name>/` (public entry via `index.ts`); work plans ->
-   `tasks/<id>-<slug>/PLAN.md`; documentation -> `docs/`. Never drop new files
+   `PLAN.md` (edit existing blocks in place); documentation -> `docs/`. Never drop new files
    into the repo root — the root holds workspace-level config only.
 3. **Leave no litter.** Before finishing, `git status` must contain only
    intentional changes. Delete scratch files, debug scripts, one-off outputs,
@@ -164,7 +164,7 @@ If a required check cannot run because of missing services, credentials, depende
 - Never create GitHub comments, issues, discussions, labels, releases, or PRs unless explicitly asked.
 - Keep commits focused; use conventional-commit style messages (`feat:`, `fix:`, `docs:`, `chore:`) as in the existing history.
 - Never commit generated outputs: `packages/api-client/src/generated/**`, `apps/api/openapi.json`, `dist/`, `*.tsbuildinfo` are gitignored — keep it that way.
-- Do not commit `test-task.md`, `vacancy_text.txt` (assignment sources stay untracked).
+- Do not commit `test-task.md` (assignment source stays untracked).
 - No helper commit/push scripts (`commit2.py`, `push_and_check.py`, etc.).
 
 ## Dependency Management

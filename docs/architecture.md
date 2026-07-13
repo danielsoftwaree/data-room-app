@@ -2,7 +2,7 @@
 
 What runs where, who owns what, and the decisions behind it.
 Companion docs: `docs/monorepo.md` (workspace layout and rules),
-`PLAN.md` (product plan), `tasks/` (active work items).
+`PLAN.md` (product plan).
 
 ## The system in one paragraph
 
@@ -46,7 +46,10 @@ src/
                       Drizzle adapter, HTTP controllers/DTOs/error mapping
     storage/          BlobStorage abstraction: db (bytea) or s3 driver,
                       selected by STORAGE_DRIVER
-  shared/             exception filter, error helpers, small utilities
+    workspace/        users, dataroom members + roles, favorites, activity,
+                      storage usage
+  shared/             Clerk auth guard (demo-user fallback when unconfigured),
+                      exception filter, error helpers, small utilities
 tests/
   integration/        HTTP integration suite over in-memory fakes (no Postgres needed)
 ```
@@ -83,9 +86,13 @@ src/
   routes/             TanStack Router file-based routes
                       (routeTree.gen.ts is generated - do not edit)
   features/           vertical feature modules (see src/features/README.md)
+    app-shell/        sidebar navigation, user menu, theme toggle
     datarooms/        dataroom list: screen, rows, hooks
-    dataroom-browser/ folder tree browsing, breadcrumbs, PDF viewer
-    design-system/    internal showcase of tokens and components
+    dataroom-browser/ folder tree browsing, breadcrumbs, upload, PDF viewer
+    favorites/        starred datarooms and nodes
+    trash/            trashed items: restore, purge, empty
+    landing/          signed-out landing screen
+    design-system/    internal showcase of tokens and components (dev-only route)
   mocks/              dev-only MSW mock API with IndexedDB persistence
                       (enable.ts is a no-op in production builds)
   shared/             feature-agnostic utils (see src/shared/README.md)
@@ -122,9 +129,11 @@ them, never re-implement fetching.
    needs no database.
 8. **Dev mock API in the browser** - MSW + IndexedDB give the web app a full
    offline dev mode; production builds never ship the mock code.
-9. **Auth is out of scope for the MVP** - no auth code, and Clerk dependencies
-   are intentionally not installed. `docs/auth-clerk.md` is a forward-looking
-   sketch of how it would be added (including an `owner_id` seam).
+9. **Auth is real but optional** - a global `ClerkAuthGuard` verifies Clerk
+   bearer tokens and provisions users on first sight; when `CLERK_SECRET_KEY`
+   is not set the API falls back to a demo user, so the zero-config quick
+   start still works. The integration lives in `apps/api/src/shared/auth/`
+   and `apps/web/src/app/providers.tsx`.
 10. **DDD-light inside modules when complexity warrants it** - module-local
     `domain/application/infrastructure/http` folders are used for `datarooms`
     because it owns tree operations, file upload policy, persistence ports and
@@ -133,7 +142,7 @@ them, never re-implement fetching.
 
 ## Known debt
 
-Tracked honestly instead of papered over; each item links to its task.
+Tracked honestly instead of papered over.
 
 - **Repository operations are not transactional** across metadata and blob
   storage. The current service compensates by deleting a metadata row when blob

@@ -31,8 +31,6 @@ Acme structure to explore.
 - **Polish** — loading skeletons, empty states with CTAs, toasts on every
   mutation, light/dark theme (persisted, no flash).
 
-Every visible control does something real. No placeholders, no dead buttons.
-
 ## Stack
 
 Bun workspaces + Turborepo. React 19 · TypeScript · Vite · Tailwind v4 ·
@@ -49,7 +47,7 @@ docs/         architecture · monorepo · deploy
 ```
 
 Business rules (naming, duplicates, cascades, sorting) live as pure functions in
-`@repo/domain` with zero framework deps, so the *same* rules run in the API, the
+`@repo/domain` with zero framework deps, so the _same_ rules run in the API, the
 MSW mock and the client.
 
 ## Commands

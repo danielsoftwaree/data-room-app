@@ -8,11 +8,12 @@ import { EmptyState } from '@repo/ui/components/empty-state';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { toast } from '@repo/ui/components/sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
-import { LinkIcon } from 'lucide-react';
+import { LinkIcon, UploadIcon } from 'lucide-react';
 import { useFavorites } from '@/features/favorites';
 import { topLevelTargets } from '../helpers/top-level-targets';
 import { useBrowserData } from '../hooks/use-browser-data.query';
 import { useBrowserDialogs } from '../hooks/use-browser-dialogs';
+import { useDropUpload } from '../hooks/use-drop-upload';
 import { useFileUpload } from '../hooks/use-file-upload';
 import { useNodeMutations } from '../hooks/use-node-mutations.mutation';
 import { useNodePreview } from '../hooks/use-node-preview';
@@ -67,6 +68,10 @@ function DocumentsWorkspace({
     dataroomId,
     folderId,
     createFile: mutations.createFile,
+  });
+  const dropUpload = useDropUpload({
+    enabled: data.canEdit && !data.folderMissing,
+    onDropFiles: (files) => void uploadFiles(files),
   });
   const [contextNode, setContextNode] = useState<DataroomNode | null>(null);
 
@@ -139,7 +144,17 @@ function DocumentsWorkspace({
         }
       }}
     >
-      <section className="relative flex min-w-0 flex-1 flex-col">
+      <section className="relative flex min-w-0 flex-1 flex-col" {...dropUpload.dropTargetProps}>
+        {dropUpload.isDropTarget ? (
+          <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/85">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <UploadIcon className="size-8 text-primary" aria-hidden />
+              <p className="text-sm font-medium">
+                Drop PDFs to upload to “{data.currentFolder?.name ?? data.dataroomName}”
+              </p>
+            </div>
+          </div>
+        ) : null}
         <RoomHeader
           name={data.currentFolder?.name ?? data.dataroomName}
           kind={data.currentFolder ? 'folder' : 'room'}

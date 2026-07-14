@@ -122,6 +122,33 @@ export interface EmptyTrashResult {
   deletedIds: string[];
 }
 
+/** Sets (or rotates) the password of a file's public share link. */
+export interface UpsertShareRequest {
+  password: string;
+}
+
+/** A public share link on a file node. */
+export interface ShareDto {
+  slug: string;
+  createdAt: number;
+}
+
+/** Share state of one node: `share` is null when the file has no public link. */
+export interface NodeShareStateDto {
+  share: ShareDto | null;
+}
+
+export interface UnlockShareRequest {
+  password: string;
+}
+
+/** Metadata of a password-unlocked shared file. Public surface: no ids, no owner. */
+export interface SharedFileDto {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
 export interface ApiErrorResponse {
   error: {
     code: string;

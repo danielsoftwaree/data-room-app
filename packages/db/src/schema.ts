@@ -94,6 +94,23 @@ export const fileBlobs = pgTable('file_blobs', {
   contentType: text('content_type').notNull(),
 });
 
+export const nodeShares = pgTable(
+  'node_shares',
+  {
+    // One share per file: the node id is the primary key. Cascade drops the share
+    // when the file is purged; a soft-deleted (trashed) file keeps its row, so the
+    // link revives on restore — the service hides it while the node is trashed.
+    nodeId: uuid('node_id')
+      .primaryKey()
+      .references(() => nodes.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (table) => [uniqueIndex('node_shares_slug_unique').on(table.slug)],
+);
+
 export const dataroomMembers = pgTable(
   'dataroom_members',
   {
@@ -158,6 +175,8 @@ export const activity = pgTable(
         'member.added',
         'member.updated',
         'member.removed',
+        'share.created',
+        'share.removed',
       ],
     }).notNull(),
     actorId: uuid('actor_id')
@@ -172,7 +191,7 @@ export const activity = pgTable(
     ),
     check(
       'activity_action_check',
-      sql`${table.action} IN ('dataroom.created', 'folder.created', 'file.uploaded', 'node.renamed', 'node.moved', 'node.deleted', 'node.restored', 'member.added', 'member.updated', 'member.removed')`,
+      sql`${table.action} IN ('dataroom.created', 'folder.created', 'file.uploaded', 'node.renamed', 'node.moved', 'node.deleted', 'node.restored', 'member.added', 'member.updated', 'member.removed', 'share.created', 'share.removed')`,
     ),
     index('activity_dataroom_created_at_idx').on(table.dataroomId, table.createdAt),
     index('activity_node_id_idx').on(table.nodeId),

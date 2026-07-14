@@ -47,7 +47,9 @@ export type ActivityAction =
   | 'node.restored'
   | 'member.added'
   | 'member.updated'
-  | 'member.removed';
+  | 'member.removed'
+  | 'share.created'
+  | 'share.removed';
 
 export interface ActivityEntry {
   id: string;
@@ -83,6 +85,8 @@ export interface FileNode extends BaseNode {
   type: 'file';
   /** size in bytes */
   size: number;
+  /** public share-link slug, or null when the file has no share link */
+  shareSlug: string | null;
 }
 
 export type DataroomNode = FolderNode | FileNode;
@@ -135,6 +139,27 @@ export function nextAvailableName(existing: readonly string[], desired: string):
 export function isNameTaken(existing: readonly string[], name: string): boolean {
   const target = name.trim().toLowerCase();
   return existing.some((n) => n.toLowerCase() === target);
+}
+
+export const SHARE_PASSWORD_MIN_LENGTH = 4;
+export const SHARE_PASSWORD_MAX_LENGTH = 128;
+
+export type SharePasswordValidationError = 'too-short' | 'too-long';
+
+/** One user-facing message per validation error — the UI, the mock API and the real API all show the same copy. */
+export const SHARE_PASSWORD_ERROR_MESSAGES: Record<SharePasswordValidationError, string> = {
+  'too-short': `Password must be at least ${SHARE_PASSWORD_MIN_LENGTH} characters`,
+  'too-long': `Password cannot be longer than ${SHARE_PASSWORD_MAX_LENGTH} characters`,
+};
+
+export type SharePasswordValidationResult =
+  { ok: true; password: string } | { ok: false; error: SharePasswordValidationError };
+
+/** Validates a share-link password. Never trimmed: spaces are legal password characters. */
+export function validateSharePassword(raw: string): SharePasswordValidationResult {
+  if (raw.length < SHARE_PASSWORD_MIN_LENGTH) return { ok: false, error: 'too-short' };
+  if (raw.length > SHARE_PASSWORD_MAX_LENGTH) return { ok: false, error: 'too-long' };
+  return { ok: true, password: raw };
 }
 
 /** Standard listing order: folders first, then files, each alphabetically. */

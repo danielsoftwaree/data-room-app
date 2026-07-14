@@ -23,8 +23,10 @@ export function useFavorites() {
     ),
   );
 
+  // Returned (not voided) on purpose: the mutation stays pending until the
+  // refetch lands, so the optimistic star below never flickers back.
   const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: getListFavoritesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListFavoritesQueryKey() });
   const onError = (error: unknown) => toast.error(getApiErrorMessage(error));
 
   const add = useAddFavorite({ mutation: { onSuccess: invalidate, onError } });

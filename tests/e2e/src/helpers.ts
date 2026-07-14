@@ -117,7 +117,8 @@ export async function renameRowViaUi(
 ): Promise<void> {
   await page.getByLabel(`Actions for ${currentName}`).click();
   await page.getByRole('menuitem', { name: 'Rename' }).click();
-  await page.getByLabel('Name').fill(nextName);
+  // exact: a substring match would also hit the "Rename file" dialog itself.
+  await page.getByLabel('Name', { exact: true }).fill(nextName);
   await page.getByRole('button', { name: 'Rename' }).click();
   await expect(rowName(page, nextName)).toBeVisible();
 }

@@ -39,7 +39,8 @@ test('trashed items can be undone, restored from the Trash, and purged forever',
     await page.goto('/trash');
     await page.getByLabel(`Delete ${fileName} forever`).click();
     await page.getByRole('button', { name: 'Delete forever' }).click();
-    await expect(page.getByText(fileName)).toBeHidden();
+    // Scoped to the list row: the closing confirm dialog still carries the name.
+    await expect(trashRow).toBeHidden();
     await page.goto(`/datarooms/${dataroom.id}`);
     await expect(rowName(page, fileName)).toBeHidden();
   } finally {

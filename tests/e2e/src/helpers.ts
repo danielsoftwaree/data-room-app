@@ -115,7 +115,7 @@ export async function renameRowViaUi(
   currentName: string,
   nextName: string,
 ): Promise<void> {
-  await page.getByLabel(`Actions for ${currentName}`).click();
+  await openRowMenu(page, currentName);
   await page.getByRole('menuitem', { name: 'Rename' }).click();
   // exact: a substring match would also hit the "Rename file" dialog itself.
   await page.getByLabel('Name', { exact: true }).fill(nextName);
@@ -125,7 +125,22 @@ export async function renameRowViaUi(
 
 /** Move a row to the trash. Deleting is reversible, so there is no confirm step. */
 export async function trashRowViaUi(page: Page, name: string): Promise<void> {
-  await page.getByLabel(`Actions for ${name}`).click();
+  await openRowMenu(page, name);
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(rowName(page, name)).toBeHidden();
+}
+
+/**
+ * Open a row's actions menu, retrying like a user would: a data refetch landing
+ * right after the click (e.g. the Undo toast's restore) can re-render the row
+ * and close the menu before an item is picked.
+ */
+export async function openRowMenu(page: Page, name: string): Promise<void> {
+  await expect(async () => {
+    const menu = page.getByRole('menu');
+    if (!(await menu.isVisible())) {
+      await page.getByLabel(`Actions for ${name}`).click();
+    }
+    await expect(menu).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 15_000 });
 }

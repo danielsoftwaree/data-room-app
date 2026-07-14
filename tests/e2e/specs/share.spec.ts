@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { createDataroom, deleteDataroom, rowName, uniqueName, uploadPdf } from '../src/helpers';
+import {
+  createDataroom,
+  deleteDataroom,
+  openRowMenu,
+  rowName,
+  uniqueName,
+  uploadPdf,
+} from '../src/helpers';
 
 test('shares a file behind a password, opens it publicly, and revokes the link', async ({
   page,
@@ -15,7 +22,7 @@ test('shares a file behind a password, opens it publicly, and revokes the link',
     await expect(rowName(page, 'shared.pdf')).toBeVisible();
 
     // Owner opens the share dialog from the row actions and sets a password.
-    await page.getByLabel('Actions for shared.pdf').click();
+    await openRowMenu(page, 'shared.pdf');
     await page.getByRole('menuitem', { name: /^Share/ }).click();
     const shareDialog = page.getByRole('dialog');
     await shareDialog.getByLabel('Password').fill(password);

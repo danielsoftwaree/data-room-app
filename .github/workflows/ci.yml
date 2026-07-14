@@ -17,3 +17,39 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: dataroom
+          POSTGRES_PASSWORD: dataroom
+          POSTGRES_DB: dataroom_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dataroom -d dataroom_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+        working-directory: tests/e2e
+      # The web dev server imports the generated API client, which is not committed.
+      - run: bun run generate
+      - run: bun run test:e2e
+        env:
+          E2E_DATABASE_URL: postgres://dataroom:dataroom@localhost:5432/dataroom_e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: tests/e2e/test-results/
+          retention-days: 7

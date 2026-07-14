@@ -12,3 +12,6 @@ apps/api/openapi.json
 packages/api-client/src/generated/
 
 .tanstack/
+
+# local agent config; skills live in .agents/skills, .claude/skills is a local junction to it
+.claude/

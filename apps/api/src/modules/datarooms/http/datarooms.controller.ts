@@ -52,9 +52,7 @@ export class DataroomsController {
 
   @Get()
   @ApiOkResponse({ type: [DataroomDto] })
-  async listDatarooms(
-    @Headers('x-user-id') rawUserId?: string | string[],
-  ): Promise<DataroomDto[]> {
+  async listDatarooms(@Headers('x-user-id') rawUserId?: string | string[]): Promise<DataroomDto[]> {
     const userId = await this.workspace.resolveCurrentUserId(normalizeHeader(rawUserId));
     return this.dataroomsService.listDatarooms(userId);
   }

@@ -1,11 +1,4 @@
-import type {
-  Dataroom,
-  DataroomNode,
-  FileNode,
-  FolderNode,
-  MemberRole,
-  User,
-} from '@repo/domain';
+import type { Dataroom, DataroomNode, FileNode, FolderNode, MemberRole, User } from '@repo/domain';
 import type {
   CreateFileNodeInput,
   CreateFolderInput,
@@ -73,13 +66,20 @@ export class FakeDataroomsRepository implements DataroomsRepository {
   }
 
   roleOf(dataroomId: string, userId: string): MemberRole | null {
-    return this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null;
+    return (
+      this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null
+    );
   }
 
   addMemberEntry(dataroomId: string, userId: string, role: MemberRole): MemberEntry {
     const existing = this.members.find((m) => m.dataroomId === dataroomId && m.userId === userId);
     if (existing) return existing;
-    const entry: MemberEntry = { dataroomId, userId, role, addedAt: Date.now() + this.members.length };
+    const entry: MemberEntry = {
+      dataroomId,
+      userId,
+      role,
+      addedAt: Date.now() + this.members.length,
+    };
     this.members.push(entry);
     return entry;
   }
@@ -112,7 +112,9 @@ export class FakeDataroomsRepository implements DataroomsRepository {
     const meta = new Map<string, DataroomMeta>();
     for (const id of dataroomIds) {
       const entries = this.memberEntriesFor(id);
-      const owner = entries.filter((m) => m.role === 'owner').sort((a, b) => a.addedAt - b.addedAt)[0];
+      const owner = entries
+        .filter((m) => m.role === 'owner')
+        .sort((a, b) => a.addedAt - b.addedAt)[0];
       meta.set(id, {
         memberCount: entries.length,
         owner: owner ? this.userById(owner.userId) : null,

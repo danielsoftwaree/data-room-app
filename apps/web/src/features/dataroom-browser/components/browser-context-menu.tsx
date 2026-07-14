@@ -84,7 +84,7 @@ export function BrowserContextMenu({
             <LinkIcon />
             Copy link
           </ContextMenuItem>
-          {contextNode.type === 'file' && contextNode.shareSlug ? (
+          {contextNode.shareSlug ? (
             <ContextMenuItem onSelect={() => onCopyShareLink(contextNode)}>
               <CopyIcon />
               Copy share link
@@ -93,12 +93,10 @@ export function BrowserContextMenu({
           {canEdit ? (
             <>
               <ContextMenuSeparator />
-              {contextNode.type === 'file' ? (
-                <ContextMenuItem onSelect={() => onShare(contextNode)}>
-                  <LinkIcon />
-                  Share…
-                </ContextMenuItem>
-              ) : null}
+              <ContextMenuItem onSelect={() => onShare(contextNode)}>
+                <LinkIcon />
+                Share…
+              </ContextMenuItem>
               <ContextMenuItem onSelect={() => onRename(contextNode)}>
                 <PencilIcon />
                 Rename

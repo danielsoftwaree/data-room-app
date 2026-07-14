@@ -106,7 +106,7 @@ export function DocumentGrid({
             </button>
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               {formatDate(node.updatedAt)}
-              {node.type === 'file' && node.shareSlug ? (
+              {node.shareSlug ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span role="img" aria-label="Shared via link" className="text-muted-foreground">

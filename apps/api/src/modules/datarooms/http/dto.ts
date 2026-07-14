@@ -8,14 +8,9 @@ import type {
   DeleteNodeResult,
   EmptyTrashResult,
   MoveNodeRequest,
-  NodeShareStateDto as NodeShareStateContract,
   RenameNodeRequest,
-  ShareDto as ShareContract,
-  SharedFileDto as SharedFileContract,
   TrashItemDto as TrashItemContract,
-  UnlockShareRequest,
   UploadFileRequest,
-  UpsertShareRequest,
 } from '@repo/contracts';
 import type { MemberRole, NodeType } from '@repo/domain';
 import { UserDto } from '../../workspace/http/dto';
@@ -96,7 +91,7 @@ export class NodeDto {
     type: String,
     nullable: true,
     required: false,
-    description: 'Public share-link slug (files only); null when the file has no share link',
+    description: 'Public share-link slug; null when the node has no share link',
   })
   shareSlug?: string | null;
 }
@@ -120,7 +115,11 @@ export class TrashItemDto implements TrashItemContract {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ type: Number, nullable: true, description: 'File size in bytes; null for folders' })
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'File size in bytes; null for folders',
+  })
   size!: number | null;
 
   @ApiProperty({ description: 'Unix epoch ms' })
@@ -201,42 +200,4 @@ export class DeleteNodeResultDto implements DeleteNodeResult {
 export class EmptyTrashResultDto implements EmptyTrashResult {
   @ApiProperty({ type: [String], description: 'Ids of every purged node' })
   deletedIds!: string[];
-}
-
-export class UpsertShareDto implements UpsertShareRequest {
-  // Length is validated in the service so the exact SHARE_PASSWORD_ERROR_MESSAGES copy
-  // is returned (shared with the mock API); here we only guard the type.
-  @ApiProperty({ description: 'Share-link password (4-128 chars, never trimmed)' })
-  @IsString()
-  password!: string;
-}
-
-export class ShareDto implements ShareContract {
-  @ApiProperty({ description: 'Public share-link slug' })
-  slug!: string;
-
-  @ApiProperty({ description: 'Unix epoch ms' })
-  createdAt!: number;
-}
-
-export class NodeShareStateDto implements NodeShareStateContract {
-  @ApiProperty({ type: ShareDto, nullable: true, description: 'null when the file has no share link' })
-  share!: ShareDto | null;
-}
-
-export class UnlockShareDto implements UnlockShareRequest {
-  @ApiProperty({ description: 'Share-link password' })
-  @IsString()
-  password!: string;
-}
-
-export class SharedFileDto implements SharedFileContract {
-  @ApiProperty()
-  name!: string;
-
-  @ApiProperty({ description: 'File size in bytes' })
-  size!: number;
-
-  @ApiProperty()
-  contentType!: string;
 }

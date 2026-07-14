@@ -157,7 +157,10 @@ describe('selectTrashRoots', () => {
   });
 
   test('a trashed node whose parent is still live counts as a root', () => {
-    const nodes = [trashed('live-parent', null, null), trashed('trashed-child', 'live-parent', 200)];
+    const nodes = [
+      trashed('live-parent', null, null),
+      trashed('trashed-child', 'live-parent', 200),
+    ];
     expect(selectTrashRoots(nodes).map((n) => n.id)).toEqual(['trashed-child']);
   });
 
@@ -168,7 +171,11 @@ describe('selectTrashRoots', () => {
 
   test('surfaces every independently-trashed root across datarooms', () => {
     const nodes = [trashed('r1', null, 1), trashed('r2', null, 2), trashed('c1', 'r1', 1)];
-    expect(selectTrashRoots(nodes).map((n) => n.id).sort()).toEqual(['r1', 'r2']);
+    expect(
+      selectTrashRoots(nodes)
+        .map((n) => n.id)
+        .sort(),
+    ).toEqual(['r1', 'r2']);
   });
 });
 

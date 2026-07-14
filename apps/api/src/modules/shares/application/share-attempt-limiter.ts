@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ShareRateLimitedError } from '../domain/errors';
+import { ShareRateLimitedError } from '../../datarooms/domain/errors';
 
 /** Max failed unlock attempts allowed within one window before locking out. */
 const MAX_FAILURES = 10;

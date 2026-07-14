@@ -130,8 +130,7 @@ function PdfContent({ file }: { file: FileNode }) {
     (delta: number) => {
       setSearch((previous) => {
         if (!previous || previous.pages.length === 0) return previous;
-        const next =
-          (previous.current + delta + previous.pages.length) % previous.pages.length;
+        const next = (previous.current + delta + previous.pages.length) % previous.pages.length;
         scrollToPage(previous.pages[next]);
         return { ...previous, current: next };
       });
@@ -228,7 +227,7 @@ function PdfContent({ file }: { file: FileNode }) {
               />
               {search ? (
                 <span
-                  className="whitespace-nowrap text-xs text-muted-foreground tabular-nums"
+                  className="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
                   role="status"
                 >
                   {search.pages.length > 0

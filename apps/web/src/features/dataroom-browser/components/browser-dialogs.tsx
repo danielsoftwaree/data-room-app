@@ -120,7 +120,7 @@ export function BrowserDialogs({
       <PdfViewerDialog file={dialog?.kind === 'viewer' ? dialog.file : null} onClose={onClose} />
 
       <ShareDialog
-        file={dialog?.kind === 'share' ? dialog.file : null}
+        node={dialog?.kind === 'share' ? dialog.node : null}
         dataroomId={dataroomId}
         onClose={onClose}
       />

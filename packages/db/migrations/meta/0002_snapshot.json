@@ -102,12 +102,8 @@
           "name": "activity_dataroom_id_datarooms_id_fk",
           "tableFrom": "activity",
           "tableTo": "datarooms",
-          "columnsFrom": [
-            "dataroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dataroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -115,12 +111,8 @@
           "name": "activity_actor_id_users_id_fk",
           "tableFrom": "activity",
           "tableTo": "users",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -192,12 +184,8 @@
           "name": "dataroom_members_dataroom_id_datarooms_id_fk",
           "tableFrom": "dataroom_members",
           "tableTo": "datarooms",
-          "columnsFrom": [
-            "dataroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dataroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -205,12 +193,8 @@
           "name": "dataroom_members_user_id_users_id_fk",
           "tableFrom": "dataroom_members",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -218,10 +202,7 @@
       "compositePrimaryKeys": {
         "dataroom_members_dataroom_id_user_id_pk": {
           "name": "dataroom_members_dataroom_id_user_id_pk",
-          "columns": [
-            "dataroom_id",
-            "user_id"
-          ]
+          "columns": ["dataroom_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -300,12 +281,8 @@
           "name": "datarooms_created_by_users_id_fk",
           "tableFrom": "datarooms",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -313,12 +290,8 @@
           "name": "datarooms_updated_by_users_id_fk",
           "tableFrom": "datarooms",
           "tableTo": "users",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -431,12 +404,8 @@
           "name": "favorites_user_id_users_id_fk",
           "tableFrom": "favorites",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -444,12 +413,8 @@
           "name": "favorites_dataroom_id_datarooms_id_fk",
           "tableFrom": "favorites",
           "tableTo": "datarooms",
-          "columnsFrom": [
-            "dataroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dataroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -489,12 +454,8 @@
           "name": "file_blobs_node_id_nodes_id_fk",
           "tableFrom": "file_blobs",
           "tableTo": "nodes",
-          "columnsFrom": [
-            "node_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["node_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -688,12 +649,8 @@
           "name": "nodes_dataroom_id_datarooms_id_fk",
           "tableFrom": "nodes",
           "tableTo": "datarooms",
-          "columnsFrom": [
-            "dataroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dataroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -701,12 +658,8 @@
           "name": "nodes_parent_id_nodes_id_fk",
           "tableFrom": "nodes",
           "tableTo": "nodes",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -714,12 +667,8 @@
           "name": "nodes_created_by_users_id_fk",
           "tableFrom": "nodes",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -727,12 +676,8 @@
           "name": "nodes_updated_by_users_id_fk",
           "tableFrom": "nodes",
           "tableTo": "users",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -740,12 +685,8 @@
           "name": "nodes_deleted_by_users_id_fk",
           "tableFrom": "nodes",
           "tableTo": "users",
-          "columnsFrom": [
-            "deleted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["deleted_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }

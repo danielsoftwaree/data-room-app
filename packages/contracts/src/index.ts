@@ -122,31 +122,57 @@ export interface EmptyTrashResult {
   deletedIds: string[];
 }
 
-/** Sets (or rotates) the password of a file's public share link. */
+/**
+ * Creates a node's public share link, or updates its password. Omitted/null
+ * password = anyone with the link can open the share anonymously.
+ */
 export interface UpsertShareRequest {
-  password: string;
+  password?: string | null;
 }
 
-/** A public share link on a file node. */
+/** A public share link on a node (file or folder). */
 export interface ShareDto {
   slug: string;
   createdAt: number;
+  hasPassword: boolean;
 }
 
-/** Share state of one node: `share` is null when the file has no public link. */
+/** Share state of one node: `share` is null when the node has no public link. */
 export interface NodeShareStateDto {
   share: ShareDto | null;
 }
 
 export interface UnlockShareRequest {
-  password: string;
+  password?: string | null;
 }
 
-/** Metadata of a password-unlocked shared file. Public surface: no ids, no owner. */
-export interface SharedFileDto {
+/** Requests the bytes of a shared file. `fileId` targets a file inside a shared folder. */
+export interface SharedContentRequest {
+  password?: string | null;
+  fileId?: string | null;
+}
+
+/** One entry inside a shared folder. Ids are needed to fetch nested file content. */
+export interface SharedChildDto {
+  id: string;
   name: string;
-  size: number;
-  contentType: string;
+  type: NodeType;
+  /** File size in bytes; absent for folders. */
+  size?: number;
+  /** Present for folders: their (recursive) live children. */
+  children?: SharedChildDto[];
+}
+
+/** Metadata of an unlocked shared node. Public surface: no owner, no room info. */
+export interface SharedNodeDto {
+  name: string;
+  type: NodeType;
+  /** File size in bytes; absent for folders. */
+  size?: number;
+  /** Present for files. */
+  contentType?: string;
+  /** Present for folders: the shared subtree of live nodes. */
+  children?: SharedChildDto[];
 }
 
 export interface ApiErrorResponse {

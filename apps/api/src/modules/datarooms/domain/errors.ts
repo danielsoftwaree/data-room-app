@@ -59,6 +59,15 @@ export class ShareNotFoundError extends DataroomModuleError {
   }
 }
 
+/** The share has a password but the request carried none (the UI's anonymous probe). */
+export class SharePasswordRequiredError extends DataroomModuleError {
+  readonly kind = 'share-password-required';
+
+  constructor(message = 'Password required') {
+    super(message);
+  }
+}
+
 export class InvalidSharePasswordError extends DataroomModuleError {
   readonly kind = 'invalid-share-password';
 

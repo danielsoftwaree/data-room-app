@@ -10,7 +10,8 @@ import type {
   EmptyTrashResult,
   NodeShareStateDto,
   ShareDto,
-  SharedFileDto,
+  SharedChildDto,
+  SharedNodeDto,
   TrashItemDto,
 } from '@repo/contracts';
 import type {
@@ -318,6 +319,7 @@ export function createFolder(
     updatedBy: userId,
     deletedAt: null,
     deletedBy: null,
+    shareSlug: null,
   };
   nodes.push(folder);
   touchDataroom(dataroomId, ts, userId);
@@ -534,56 +536,68 @@ function shareSlug(): string {
   return crypto.randomUUID().replace(/-/g, '');
 }
 
-/** The shareable file for a management call: live, a file, and editor-gated. */
-function requireShareableFile(nodeId: string, userId: string): FileNode {
+/** The shareable node for a management call: live (file or folder) and editor-gated. */
+function requireShareableNode(nodeId: string, userId: string): DataroomNode {
   const node = getLiveNode(nodeId);
-  if (node.type !== 'file') throw new MockError(400, 'Only files can be shared');
   requireRole(node.dataroomId, userId, 'editor');
   return node;
 }
 
+function toShareDto(share: PersistedShare): ShareDto {
+  return { slug: share.slug, createdAt: share.createdAt, hasPassword: share.password !== null };
+}
+
 /**
- * Sets or rotates the password of a file's public share link. Creating mints a
- * fresh slug; rotating the password KEEPS the existing slug (and createdAt), so
- * links already handed out keep working.
+ * Creates a node's public share link, or changes its password. Creating mints a
+ * fresh slug; changing the password KEEPS the existing slug (and createdAt), so
+ * links already handed out keep working. A null/absent password makes the link
+ * open anonymously.
  */
-export function upsertShare(nodeId: string, rawPassword: string, userId: string): ShareDto {
-  const node = requireShareableFile(nodeId, userId);
-  const validation = validateSharePassword(rawPassword);
-  if (!validation.ok) throw new MockError(400, SHARE_PASSWORD_ERROR_MESSAGES[validation.error]);
+export function upsertShare(
+  nodeId: string,
+  rawPassword: string | null | undefined,
+  userId: string,
+): ShareDto {
+  const node = requireShareableNode(nodeId, userId);
+  let password: string | null = null;
+  if (rawPassword != null && rawPassword !== '') {
+    const validation = validateSharePassword(rawPassword);
+    if (!validation.ok) throw new MockError(400, SHARE_PASSWORD_ERROR_MESSAGES[validation.error]);
+    password = validation.password;
+  }
 
   const existing = shares.find((share) => share.nodeId === nodeId);
   if (existing) {
-    existing.password = validation.password;
+    existing.password = password;
     node.shareSlug = existing.slug;
     persist();
-    return { slug: existing.slug, createdAt: existing.createdAt };
+    return toShareDto(existing);
   }
 
   const ts = tick();
   const share: PersistedShare = {
     nodeId,
     slug: shareSlug(),
-    password: validation.password,
+    password,
     createdAt: ts,
   };
   shares.push(share);
   node.shareSlug = share.slug;
   recordNodeActivity(node, 'share.created', userId, ts);
   persist();
-  return { slug: share.slug, createdAt: share.createdAt };
+  return toShareDto(share);
 }
 
 export function getNodeShare(nodeId: string, userId: string): NodeShareStateDto {
   const node = getLiveNode(nodeId);
   requireMember(node.dataroomId, userId);
   const share = shares.find((candidate) => candidate.nodeId === nodeId);
-  return { share: share ? { slug: share.slug, createdAt: share.createdAt } : null };
+  return { share: share ? toShareDto(share) : null };
 }
 
-/** Removes a file's share link. Idempotent: removing an absent link is a no-op. */
+/** Removes a node's share link. Idempotent: removing an absent link is a no-op. */
 export function removeShare(nodeId: string, userId: string): void {
-  const node = requireShareableFile(nodeId, userId);
+  const node = requireShareableNode(nodeId, userId);
   const existing = shares.find((share) => share.nodeId === nodeId);
   if (!existing) return;
   removeWhere(shares, (share) => share.nodeId === nodeId);
@@ -593,14 +607,14 @@ export function removeShare(nodeId: string, userId: string): void {
 }
 
 /**
- * Resolves a public slug to its live file. A trashed file (or an unknown slug)
+ * Resolves a public slug to its live node. A trashed node (or an unknown slug)
  * is indistinguishable from "no such link" on purpose — the public surface
- * never reveals whether a file exists but is hidden.
+ * never reveals whether a node exists but is hidden.
  */
-function requireSharedFile(slug: string): { share: PersistedShare; node: FileNode } {
+function requireSharedNode(slug: string): { share: PersistedShare; node: DataroomNode } {
   const share = shares.find((candidate) => candidate.slug === slug);
   const node = share ? nodes.find((candidate) => candidate.id === share.nodeId) : null;
-  if (!share || !node || node.type !== 'file' || node.deletedAt !== null) {
+  if (!share || !node || node.deletedAt !== null) {
     throw new MockError(404, 'Share link not found', 'SHARE_NOT_FOUND');
   }
   return { share, node };
@@ -612,8 +626,16 @@ const RATE_LIMIT_MAX_FAILURES = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const failedUnlockTimes = new Map<string, number[]>();
 
-/** 429 after too many wrong passwords, 401 on a wrong one; success clears the count. */
-function checkSharePassword(share: PersistedShare, password: string): void {
+/**
+ * 429 after too many wrong passwords, 401 on a wrong one; success clears the
+ * count. A passwordless share always passes; a missing-but-required password is
+ * a distinct 401 (the UI's anonymous probe) that never counts as a failure.
+ */
+function checkSharePassword(share: PersistedShare, password: string | null | undefined): void {
+  if (share.password === null) return;
+  if (password == null || password === '') {
+    throw new MockError(401, 'Password required', 'SHARE_PASSWORD_REQUIRED');
+  }
   const now = Date.now();
   const recent = (failedUnlockTimes.get(share.slug) ?? []).filter(
     (at) => now - at < RATE_LIMIT_WINDOW_MS,
@@ -628,24 +650,65 @@ function checkSharePassword(share: PersistedShare, password: string): void {
   failedUnlockTimes.delete(share.slug);
 }
 
-/** Public: verify the password and return file metadata (no ids, no owner). */
-export function unlockShare(slug: string, password: string): SharedFileDto {
-  const { share, node } = requireSharedFile(slug);
-  checkSharePassword(share, password);
-  const stored = fileContents.get(node.id);
-  return { name: node.name, size: node.size, contentType: stored?.contentType ?? 'application/pdf' };
+/** The live subtree under a shared folder, as public child DTOs (folders first, by name). */
+function sharedSubtree(root: DataroomNode): SharedChildDto[] {
+  const live = nodes.filter((n) => n.dataroomId === root.dataroomId && n.deletedAt === null);
+  const build = (parentId: string): SharedChildDto[] =>
+    sortNodes(live.filter((n) => n.parentId === parentId)).map((n) =>
+      n.type === 'file'
+        ? { id: n.id, name: n.name, type: 'file' as const, size: n.size }
+        : { id: n.id, name: n.name, type: 'folder' as const, children: build(n.id) },
+    );
+  return build(root.id);
 }
 
-/** Public: verify the password and return the raw file bytes for preview/download. */
+/** Public: verify the password and return node metadata (no owner, no room info). */
+export function unlockShare(slug: string, password: string | null | undefined): SharedNodeDto {
+  const { share, node } = requireSharedNode(slug);
+  checkSharePassword(share, password);
+  if (node.type === 'file') {
+    const stored = fileContents.get(node.id);
+    return {
+      name: node.name,
+      type: 'file',
+      size: node.size,
+      contentType: stored?.contentType ?? 'application/pdf',
+    };
+  }
+  return { name: node.name, type: 'folder', children: sharedSubtree(node) };
+}
+
+/**
+ * Public: verify the password and return the raw file bytes for preview/download.
+ * For a folder share, `fileId` picks a live file inside the shared subtree.
+ */
 export function getSharedContent(
   slug: string,
-  password: string,
+  password: string | null | undefined,
+  fileId?: string | null,
 ): { name: string; contentType: string; bytes: Uint8Array } {
-  const { share, node } = requireSharedFile(slug);
+  const { share, node } = requireSharedNode(slug);
   checkSharePassword(share, password);
-  const stored = fileContents.get(node.id);
+  const file = node.type === 'file' ? node : resolveSharedFile(node, fileId);
+  const stored = fileContents.get(file.id);
   if (!stored) throw new MockError(404, 'Share link not found', 'SHARE_NOT_FOUND');
-  return { name: node.name, contentType: stored.contentType, bytes: stored.bytes };
+  return { name: file.name, contentType: stored.contentType, bytes: stored.bytes };
+}
+
+/** A live file inside the shared folder's subtree, or 404. */
+function resolveSharedFile(root: DataroomNode, fileId: string | null | undefined): FileNode {
+  const file = fileId ? nodes.find((n) => n.id === fileId) : null;
+  if (file && file.type === 'file' && file.deletedAt === null) {
+    // Walk up the parent chain: the file must live under the shared folder.
+    let parentId = file.parentId;
+    while (parentId !== null) {
+      if (parentId === root.id) return file;
+      const parent = nodes.find((n) => n.id === parentId);
+      if (!parent || parent.deletedAt !== null) break;
+      parentId = parent.parentId;
+    }
+  }
+  throw new MockError(404, 'Share link not found', 'SHARE_NOT_FOUND');
 }
 
 export function listMembers(dataroomId: string, actorId: string): DataroomMember[] {

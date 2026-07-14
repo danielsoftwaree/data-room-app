@@ -29,7 +29,14 @@ describe('share-password', () => {
   });
 
   test('returns false on a malformed stored value instead of throwing', async () => {
-    for (const stored of ['', 'not-a-hash', 'scrypt:only-two', 'bcrypt:c2FsdA:aGFzaA', 'scrypt::', 'scrypt:c2FsdA:']) {
+    for (const stored of [
+      '',
+      'not-a-hash',
+      'scrypt:only-two',
+      'bcrypt:c2FsdA:aGFzaA',
+      'scrypt::',
+      'scrypt:c2FsdA:',
+    ]) {
       expect(await verifySharePassword('whatever', stored)).toBe(false);
     }
   });

@@ -2,14 +2,20 @@ import 'reflect-metadata';
 import { describe, expect, test } from 'bun:test';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SHARE_PASSWORD_ERROR_MESSAGES } from '@repo/domain';
+import type { Dataroom, DataroomNode, FileNode, FolderNode, MemberRole, User } from '@repo/domain';
 import type {
-  Dataroom,
-  DataroomNode,
-  FileNode,
-  FolderNode,
-  MemberRole,
-  User,
-} from '@repo/domain';
+  DataroomForUser,
+  DataroomMeta,
+  DataroomsRepository,
+} from '../../datarooms/domain/datarooms.repository.port';
+import {
+  InvalidInputError,
+  InvalidSharePasswordError,
+  NodeNotFoundError,
+  SharePasswordRequiredError,
+  ShareNotFoundError,
+  ShareRateLimitedError,
+} from '../../datarooms/domain/errors';
 import type { BlobStorage, PutBlobInput, StoredBlob } from '../../storage/blob-storage';
 import { WorkspaceService } from '../../workspace/application/workspace.service';
 import type {
@@ -18,18 +24,6 @@ import type {
   RecordActivityInput,
   WorkspaceRepository,
 } from '../../workspace/domain/workspace.repository.port';
-import type {
-  DataroomForUser,
-  DataroomMeta,
-  DataroomsRepository,
-} from '../domain/datarooms.repository.port';
-import {
-  InvalidInputError,
-  InvalidSharePasswordError,
-  NodeNotFoundError,
-  ShareNotFoundError,
-  ShareRateLimitedError,
-} from '../domain/errors';
 import type {
   InsertShareInput,
   NodeShare,
@@ -100,7 +94,10 @@ class FakeSharesRepository implements SharesRepository {
     return share;
   }
 
-  async updatePasswordHash(nodeId: string, passwordHash: string): Promise<NodeShare | undefined> {
+  async updatePasswordHash(
+    nodeId: string,
+    passwordHash: string | null,
+  ): Promise<NodeShare | undefined> {
     const existing = this.shares.get(nodeId);
     if (!existing) return undefined;
     const updated: NodeShare = { ...existing, passwordHash };
@@ -154,6 +151,7 @@ class FakeDataroomsRepository implements DataroomsRepository {
       updatedBy: null,
       deletedAt: null,
       deletedBy: null,
+      shareSlug: null,
       ...overrides,
     };
     this.nodes.set(node.id, node);
@@ -193,8 +191,8 @@ class FakeDataroomsRepository implements DataroomsRepository {
   async deleteDataroom(): Promise<void> {
     throw notUsed();
   }
-  async listNodes(): Promise<DataroomNode[]> {
-    throw notUsed();
+  async listNodes(dataroomId: string): Promise<DataroomNode[]> {
+    return [...this.nodes.values()].filter((node) => node.dataroomId === dataroomId);
   }
   async listDeletedNodes(): Promise<DataroomNode[]> {
     throw notUsed();
@@ -369,7 +367,12 @@ describe('shares service', () => {
     expect(share.slug).toBeTruthy();
 
     const meta = await h.service.unlockShare(share.slug, 'secret1');
-    expect(meta).toEqual({ name: 'report.pdf', size: PDF.byteLength, contentType: 'application/pdf' });
+    expect(meta).toEqual({
+      name: 'report.pdf',
+      type: 'file',
+      size: PDF.byteLength,
+      contentType: 'application/pdf',
+    });
 
     const content = await h.service.getSharedContent(share.slug, 'secret1');
     expect(content.content.equals(PDF)).toBe(true);
@@ -405,17 +408,62 @@ describe('shares service', () => {
     );
   });
 
-  test('rejects sharing a folder and rejects a too-short password', async () => {
+  test('rejects a too-short password', async () => {
     const h = setup();
-    const folder = h.repo.seedFolder(ROOM);
-    await expect(h.service.upsertShare(folder.id, 'secret1', JANE)).rejects.toBeInstanceOf(
-      InvalidInputError,
-    );
-
     const file = await seedSharedFile(h);
     const error = await h.service.upsertShare(file.id, 'abc', JANE).catch((e) => e);
     expect(error).toBeInstanceOf(InvalidInputError);
     expect((error as Error).message).toBe(SHARE_PASSWORD_ERROR_MESSAGES['too-short']);
+  });
+
+  test('a passwordless share opens anonymously; a protected one demands a password', async () => {
+    const h = setup();
+    const file = await seedSharedFile(h);
+
+    const open = await h.service.upsertShare(file.id, null, JANE);
+    expect(open.hasPassword).toBe(false);
+    expect((await h.service.unlockShare(open.slug, null)).name).toBe('report.pdf');
+
+    const locked = await h.service.upsertShare(file.id, 'secret1', JANE);
+    expect(locked.hasPassword).toBe(true);
+    await expect(h.service.unlockShare(locked.slug, null)).rejects.toBeInstanceOf(
+      SharePasswordRequiredError,
+    );
+    // Removing the password again re-opens the link.
+    await h.service.upsertShare(file.id, null, JANE);
+    expect((await h.service.unlockShare(locked.slug, null)).name).toBe('report.pdf');
+  });
+
+  test('a shared folder unlocks to its live subtree and serves nested file content', async () => {
+    const h = setup();
+    const folder = h.repo.seedFolder(ROOM, { name: 'Legal' });
+    const sub = h.repo.seedFolder(ROOM, { name: 'Contracts', parentId: folder.id });
+    const inner = h.repo.seedFile(ROOM, { name: 'nda.pdf', parentId: sub.id });
+    await h.storage.put({ key: inner.id, content: PDF, contentType: 'application/pdf' });
+    const outside = await seedSharedFile(h, 'outside.pdf');
+
+    const share = await h.service.upsertShare(folder.id, null, JANE);
+    const meta = await h.service.unlockShare(share.slug, null);
+    expect(meta.type).toBe('folder');
+    expect(meta.children).toEqual([
+      {
+        id: sub.id,
+        name: 'Contracts',
+        type: 'folder',
+        children: [{ id: inner.id, name: 'nda.pdf', type: 'file', size: PDF.byteLength }],
+      },
+    ]);
+
+    const content = await h.service.getSharedContent(share.slug, null, inner.id);
+    expect(content.name).toBe('nda.pdf');
+
+    // A file outside the shared subtree (or no fileId at all) is a 404.
+    await expect(h.service.getSharedContent(share.slug, null, outside.id)).rejects.toBeInstanceOf(
+      ShareNotFoundError,
+    );
+    await expect(h.service.getSharedContent(share.slug, null)).rejects.toBeInstanceOf(
+      ShareNotFoundError,
+    );
   });
 
   test('unlock/content of a trashed file is SHARE_NOT_FOUND; restore revives the link', async () => {

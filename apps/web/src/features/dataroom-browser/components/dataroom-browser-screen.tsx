@@ -83,15 +83,15 @@ function DocumentsWorkspace({
     toast.success('Link copied');
   }
 
-  // Public share link for an already-shared file — copied without opening the dialog.
+  // Public share link for an already-shared node — copied without opening the dialog.
   function copyShareLink(node: DataroomNode): void {
-    if (node.type !== 'file' || !node.shareSlug) return;
+    if (!node.shareSlug) return;
     void navigator.clipboard.writeText(`${window.location.origin}/share/${node.shareSlug}`);
     toast.success('Link copied');
   }
 
   function openShare(node: DataroomNode): void {
-    if (node.type === 'file') dialogs.openShare(node);
+    dialogs.openShare(node);
   }
 
   // One context menu for the whole area: resolve which node (if any) was

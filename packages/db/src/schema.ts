@@ -97,14 +97,15 @@ export const fileBlobs = pgTable('file_blobs', {
 export const nodeShares = pgTable(
   'node_shares',
   {
-    // One share per file: the node id is the primary key. Cascade drops the share
-    // when the file is purged; a soft-deleted (trashed) file keeps its row, so the
-    // link revives on restore — the service hides it while the node is trashed.
+    // One share per node (file or folder): the node id is the primary key. Cascade
+    // drops the share when the node is purged; a soft-deleted (trashed) node keeps
+    // its row, so the link revives on restore — the service hides it while trashed.
     nodeId: uuid('node_id')
       .primaryKey()
       .references(() => nodes.id, { onDelete: 'cascade' }),
     slug: text('slug').notNull(),
-    passwordHash: text('password_hash').notNull(),
+    // Null = anyone with the link can open the share without a password.
+    passwordHash: text('password_hash'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   },

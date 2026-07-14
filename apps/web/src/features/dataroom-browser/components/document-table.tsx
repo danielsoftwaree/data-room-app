@@ -167,7 +167,7 @@ function DocumentRow({
           )}
           <span className="truncate font-medium">{node.name}</span>
         </button>
-        {node.type === 'file' && node.shareSlug ? (
+        {node.shareSlug ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span
@@ -230,15 +230,11 @@ function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {node.type === 'file' ? (
-          <>
-            <DropdownMenuItem onSelect={() => onShare(node)}>
-              <LinkIcon className="size-4" />
-              Share…
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
+        <DropdownMenuItem onSelect={() => onShare(node)}>
+          <LinkIcon className="size-4" />
+          Share…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onRename(node)}>
           <PencilIcon className="size-4" />
           Rename

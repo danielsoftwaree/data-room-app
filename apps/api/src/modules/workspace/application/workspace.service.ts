@@ -127,7 +127,11 @@ export class WorkspaceService {
     await this.assertRole(dataroomId, actorId, 'owner');
     const current = await this.repository.findMemberRole(dataroomId, userId);
     if (!current) throw new NotFoundException('Member not found');
-    if (current === 'owner' && role !== 'owner' && (await this.repository.countOwners(dataroomId)) <= 1) {
+    if (
+      current === 'owner' &&
+      role !== 'owner' &&
+      (await this.repository.countOwners(dataroomId)) <= 1
+    ) {
       throw new BadRequestException('A data room must keep at least one owner');
     }
     const member = await this.repository.updateMemberRole(dataroomId, userId, role);

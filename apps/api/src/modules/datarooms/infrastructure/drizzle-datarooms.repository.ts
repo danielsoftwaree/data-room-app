@@ -289,11 +289,12 @@ function toNode(row: NodeRow, shareSlug: string | null): DataroomNode {
     updatedBy: row.updatedBy,
     deletedAt: row.deletedAt ? row.deletedAt.getTime() : null,
     deletedBy: row.deletedBy,
+    shareSlug,
   };
 
   if (row.type === 'folder') return { ...base, type: 'folder' };
   if (row.size === null) throw new Error(`File node ${row.id} is missing size`);
-  return { ...base, type: 'file', size: row.size, shareSlug };
+  return { ...base, type: 'file', size: row.size };
 }
 
 function toUser(row: UserRow): User {

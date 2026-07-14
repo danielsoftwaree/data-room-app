@@ -63,7 +63,9 @@ class Membership {
   readonly entries: MemberEntry[] = [];
 
   roleOf(dataroomId: string, userId: string): MemberRole | null {
-    return this.entries.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null;
+    return (
+      this.entries.find((m) => m.dataroomId === dataroomId && m.userId === userId)?.role ?? null
+    );
   }
 
   add(dataroomId: string, userId: string, role: MemberRole): MemberEntry {
@@ -651,9 +653,9 @@ describe('file upload', () => {
   test('rejects a missing or empty file', async () => {
     const { dataroomsService, nodesService } = setup();
     const dataroom = await dataroomsService.createDataroom('Deal Docs', JANE);
-    await expect(nodesService.createFile(dataroom.id, null, undefined, JANE)).rejects.toBeInstanceOf(
-      InvalidInputError,
-    );
+    await expect(
+      nodesService.createFile(dataroom.id, null, undefined, JANE),
+    ).rejects.toBeInstanceOf(InvalidInputError);
     await expect(
       nodesService.createFile(dataroom.id, null, pdfUpload('report.pdf', { size: 0 }), JANE),
     ).rejects.toBeInstanceOf(InvalidInputError);
@@ -743,7 +745,12 @@ describe('nodes', () => {
     const source = await nodesService.createFolder(dataroom.id, null, 'Source', JANE);
     const target = await nodesService.createFolder(dataroom.id, null, 'Target', JANE);
     await nodesService.createFile(dataroom.id, target.id, pdfUpload('report.pdf'), JANE);
-    const file = await nodesService.createFile(dataroom.id, source.id, pdfUpload('report.pdf'), JANE);
+    const file = await nodesService.createFile(
+      dataroom.id,
+      source.id,
+      pdfUpload('report.pdf'),
+      JANE,
+    );
 
     const moved = await nodesService.moveNode(file.id, target.id, JANE);
 

@@ -362,9 +362,7 @@ export class NodesService {
 /** File-node ids within the given id set — for blob cleanup on purge. */
 function fileIdsIn(nodes: readonly DataroomNode[], ids: readonly string[]): string[] {
   const idSet = new Set(ids);
-  return nodes
-    .filter((node) => node.type === 'file' && idSet.has(node.id))
-    .map((node) => node.id);
+  return nodes.filter((node) => node.type === 'file' && idSet.has(node.id)).map((node) => node.id);
 }
 
 function moveValidationError(error: string): Error {

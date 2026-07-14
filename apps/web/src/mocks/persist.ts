@@ -49,7 +49,7 @@ export interface PersistedShare {
   nodeId: string;
   slug: string;
   /** Plaintext — mock only; the real API stores a one-way hash, never the password. */
-  password: string;
+  password: string | null;
   createdAt: number;
 }
 

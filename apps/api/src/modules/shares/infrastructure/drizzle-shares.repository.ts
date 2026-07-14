@@ -48,7 +48,10 @@ export class DrizzleSharesRepository implements SharesRepository {
     return toShare(row);
   }
 
-  async updatePasswordHash(nodeId: string, passwordHash: string): Promise<NodeShare | undefined> {
+  async updatePasswordHash(
+    nodeId: string,
+    passwordHash: string | null,
+  ): Promise<NodeShare | undefined> {
     const [row] = await this.db
       .update(nodeShares)
       .set({ passwordHash })

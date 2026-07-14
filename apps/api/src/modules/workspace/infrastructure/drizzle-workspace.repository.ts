@@ -189,7 +189,9 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
         ),
       )
       .leftJoin(nodes, eq(favorites.nodeId, nodes.id))
-      .where(and(eq(favorites.userId, userId), or(isNull(favorites.nodeId), isNull(nodes.deletedAt))))
+      .where(
+        and(eq(favorites.userId, userId), or(isNull(favorites.nodeId), isNull(nodes.deletedAt))),
+      )
       .orderBy(desc(favorites.createdAt));
     return rows.map((row) => ({
       dataroomId: row.dataroomId,

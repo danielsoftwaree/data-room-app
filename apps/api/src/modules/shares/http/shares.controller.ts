@@ -11,9 +11,9 @@ import {
   UseFilters,
 } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { DataroomsExceptionFilter } from '../../datarooms/http/datarooms-exception.filter';
 import { WorkspaceService } from '../../workspace/application/workspace.service';
 import { SharesService } from '../application/shares.service';
-import { DataroomsExceptionFilter } from './datarooms-exception.filter';
 import { NodeShareStateDto, ShareDto, UpsertShareDto } from './dto';
 
 @ApiTags('shares')

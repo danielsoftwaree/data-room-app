@@ -18,8 +18,9 @@ export function toDataroomNode(dto: NodeDto): DataroomNode {
     updatedBy: dto.updatedBy,
     deletedAt: dto.deletedAt,
     deletedBy: dto.deletedBy,
+    shareSlug: dto.shareSlug ?? null,
   };
   return dto.type === 'folder'
     ? { ...base, type: 'folder' }
-    : { ...base, type: 'file', size: dto.size ?? 0, shareSlug: dto.shareSlug ?? null };
+    : { ...base, type: 'file', size: dto.size ?? 0 };
 }

@@ -31,6 +31,9 @@ function describe(error: DataroomModuleError): { status: number; code: string } 
   if (error.kind === 'share-not-found') {
     return { status: HttpStatus.NOT_FOUND, code: 'SHARE_NOT_FOUND' };
   }
+  if (error.kind === 'share-password-required') {
+    return { status: HttpStatus.UNAUTHORIZED, code: 'SHARE_PASSWORD_REQUIRED' };
+  }
   if (error.kind === 'invalid-share-password') {
     return { status: HttpStatus.UNAUTHORIZED, code: 'INVALID_SHARE_PASSWORD' };
   }

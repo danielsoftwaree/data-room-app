@@ -20,7 +20,10 @@ function errorBody(status: number, message: string, code?: string) {
     413: 'PAYLOAD_TOO_LARGE',
     429: 'TOO_MANY_REQUESTS',
   };
-  return HttpResponse.json({ error: { code: code ?? codes[status] ?? 'ERROR', message } }, { status });
+  return HttpResponse.json(
+    { error: { code: code ?? codes[status] ?? 'ERROR', message } },
+    { status },
+  );
 }
 
 /** Wraps a handler so thrown MockErrors become proper HTTP error responses. */
@@ -313,9 +316,9 @@ export const handlers = [
   http.put(
     '/api/nodes/:id/share',
     guard(async ({ params, request }) => {
-      const body = (await request.json()) as { password?: string };
+      const body = (await request.json()) as { password?: string | null };
       return HttpResponse.json(
-        db.upsertShare(params.id as string, body?.password ?? '', currentUserId(request)),
+        db.upsertShare(params.id as string, body?.password ?? null, currentUserId(request)),
       );
     }),
   ),
@@ -341,16 +344,20 @@ export const handlers = [
     '/api/public/shares/:slug/unlock',
     guard(async ({ params, request }) => {
       await delay();
-      const body = (await request.json()) as { password?: string };
-      return HttpResponse.json(db.unlockShare(params.slug as string, body?.password ?? ''));
+      const body = (await request.json()) as { password?: string | null };
+      return HttpResponse.json(db.unlockShare(params.slug as string, body?.password ?? null));
     }),
   ),
 
   http.post(
     '/api/public/shares/:slug/content',
     guard(async ({ params, request }) => {
-      const body = (await request.json()) as { password?: string };
-      const file = db.getSharedContent(params.slug as string, body?.password ?? '');
+      const body = (await request.json()) as { password?: string | null; fileId?: string | null };
+      const file = db.getSharedContent(
+        params.slug as string,
+        body?.password ?? null,
+        body?.fileId ?? null,
+      );
       // TS 5.7+ types Uint8Array over ArrayBufferLike; BlobPart wants ArrayBuffer-backed views.
       const bytes = file.bytes as Uint8Array<ArrayBuffer>;
       const blob = new Blob([bytes], { type: file.contentType });

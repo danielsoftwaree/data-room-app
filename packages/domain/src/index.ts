@@ -75,6 +75,8 @@ interface BaseNode {
   /** epoch ms when the node was moved to trash, or null when live */
   deletedAt: number | null;
   deletedBy: string | null;
+  /** public share-link slug, or null when the node has no share link */
+  shareSlug: string | null;
 }
 
 export interface FolderNode extends BaseNode {
@@ -85,8 +87,6 @@ export interface FileNode extends BaseNode {
   type: 'file';
   /** size in bytes */
   size: number;
-  /** public share-link slug, or null when the file has no share link */
-  shareSlug: string | null;
 }
 
 export type DataroomNode = FolderNode | FileNode;

@@ -13,13 +13,14 @@ import { ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../../shared/auth/public.decorator';
 import { contentDispositionInline } from '../../../shared/helpers/headers';
 import type { HeaderResponse } from '../../../shared/types/http';
+import { DataroomsExceptionFilter } from '../../datarooms/http/datarooms-exception.filter';
 import { SharesService } from '../application/shares.service';
-import { DataroomsExceptionFilter } from './datarooms-exception.filter';
-import { SharedFileDto, UnlockShareDto } from './dto';
+import { SharedContentDto, SharedNodeDto, UnlockShareDto } from './dto';
 
 /**
- * Unauthenticated surface for opening a shared file by slug. The password always
- * travels in the POST body, never the URL, so it never lands in logs or history.
+ * Unauthenticated surface for opening a shared node (file or folder) by slug.
+ * The password always travels in the POST body, never the URL, so it never
+ * lands in logs or history.
  */
 @ApiTags('public-shares')
 @Public()
@@ -30,11 +31,8 @@ export class PublicSharesController {
 
   @Post(':slug/unlock')
   @HttpCode(200)
-  @ApiOkResponse({ type: SharedFileDto })
-  unlockShare(
-    @Param('slug') slug: string,
-    @Body() body: UnlockShareDto,
-  ): Promise<SharedFileDto> {
+  @ApiOkResponse({ type: SharedNodeDto })
+  unlockShare(@Param('slug') slug: string, @Body() body: UnlockShareDto): Promise<SharedNodeDto> {
     return this.service.unlockShare(slug, body.password);
   }
 
@@ -50,10 +48,10 @@ export class PublicSharesController {
   })
   async getSharedFileContent(
     @Param('slug') slug: string,
-    @Body() body: UnlockShareDto,
+    @Body() body: SharedContentDto,
     @Res({ passthrough: true }) response: HeaderResponse,
   ): Promise<StreamableFile> {
-    const file = await this.service.getSharedContent(slug, body.password);
+    const file = await this.service.getSharedContent(slug, body.password, body.fileId);
     response.setHeader('Content-Type', file.contentType);
     response.setHeader('Content-Length', file.size);
     response.setHeader('Content-Disposition', contentDispositionInline(file.name));

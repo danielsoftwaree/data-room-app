@@ -10,6 +10,8 @@ import {
   sortNodes,
   validateMoveTarget,
 } from '@repo/domain';
+import { TRANSACTION_RUNNER } from '../../../shared/database/transaction';
+import type { TransactionRunner } from '../../../shared/database/transaction';
 import { isUniqueViolation } from '../../../shared/errors/database';
 import { BLOB_STORAGE } from '../../storage/blob-storage';
 import type { BlobStorage } from '../../storage/blob-storage';
@@ -40,6 +42,7 @@ export class NodesService {
     @Inject(DATAROOMS_REPOSITORY) private readonly repository: DataroomsRepository,
     @Inject(BLOB_STORAGE) private readonly storage: BlobStorage,
     @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
+    @Inject(TRANSACTION_RUNNER) private readonly tx: TransactionRunner,
   ) {}
 
   async listNodes(
@@ -63,14 +66,16 @@ export class NodesService {
     await this.assertParentFolder(dataroomId, parentId);
     const name = parseNodeName(rawName);
     try {
-      const node = await this.repository.createFolder({ dataroomId, parentId, name, userId });
-      await this.workspace.recordActivity({
-        dataroomId,
-        node,
-        action: 'folder.created',
-        actorId: userId,
+      return await this.tx.run(async () => {
+        const node = await this.repository.createFolder({ dataroomId, parentId, name, userId });
+        await this.workspace.recordActivity({
+          dataroomId,
+          node,
+          action: 'folder.created',
+          actorId: userId,
+        });
+        return node;
       });
-      return node;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`"${name}" already exists in this folder`);
@@ -137,15 +142,17 @@ export class NodesService {
     await this.workspace.assertRole(node.dataroomId, userId, 'editor');
     const name = parseNodeName(rawName);
     try {
-      const updated = await this.repository.renameNode(nodeId, name, userId);
-      if (!updated) throw new NodeNotFoundError();
-      await this.workspace.recordActivity({
-        dataroomId: updated.dataroomId,
-        node: updated,
-        action: 'node.renamed',
-        actorId: userId,
+      return await this.tx.run(async () => {
+        const updated = await this.repository.renameNode(nodeId, name, userId);
+        if (!updated) throw new NodeNotFoundError();
+        await this.workspace.recordActivity({
+          dataroomId: updated.dataroomId,
+          node: updated,
+          action: 'node.renamed',
+          actorId: userId,
+        });
+        return updated;
       });
-      return updated;
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new NameConflictError(`"${name}" already exists in this folder`);
@@ -157,39 +164,49 @@ export class NodesService {
   async moveNode(nodeId: string, parentId: string | null, userId: string): Promise<DataroomNode> {
     const node = await this.getLiveNode(nodeId);
     await this.workspace.assertRole(node.dataroomId, userId, 'editor');
-    const dataroomNodes = await this.repository.listNodes(node.dataroomId);
-    const validation = validateMoveTarget(dataroomNodes, nodeId, parentId);
-    if (!validation.ok) throw moveValidationError(validation.error);
+    // Locked transaction: cycle validation reads the tree, so a concurrent
+    // move must not change it between the check and the write.
+    return this.tx.run(async () => {
+      await this.repository.lockDataroom(node.dataroomId);
+      const dataroomNodes = await this.repository.listNodes(node.dataroomId);
+      const validation = validateMoveTarget(dataroomNodes, nodeId, parentId);
+      if (!validation.ok) throw moveValidationError(validation.error);
 
-    const name = nextAvailableName(
-      await this.repository.siblingNames(node.dataroomId, parentId, node.id),
-      node.name,
-    );
-    const updated = await this.repository.moveNode({ id: nodeId, parentId, name, userId });
-    if (!updated) throw new NodeNotFoundError();
-    await this.workspace.recordActivity({
-      dataroomId: updated.dataroomId,
-      node: updated,
-      action: 'node.moved',
-      actorId: userId,
+      const name = nextAvailableName(
+        await this.repository.siblingNames(node.dataroomId, parentId, node.id),
+        node.name,
+      );
+      const updated = await this.repository.moveNode({ id: nodeId, parentId, name, userId });
+      if (!updated) throw new NodeNotFoundError();
+      await this.workspace.recordActivity({
+        dataroomId: updated.dataroomId,
+        node: updated,
+        action: 'node.moved',
+        actorId: userId,
+      });
+      return updated;
     });
-    return updated;
   }
 
   /** Move a node and its subtree to the trash. Blobs and favorites are preserved. */
   async deleteNode(nodeId: string, userId: string): Promise<{ deletedIds: string[] }> {
     const node = await this.getLiveNode(nodeId);
     await this.workspace.assertRole(node.dataroomId, userId, 'editor');
-    const dataroomNodes = await this.repository.listNodes(node.dataroomId);
-    const deletedIds = collectSubtreeIds(dataroomNodes, nodeId);
-    await this.workspace.recordActivity({
-      dataroomId: node.dataroomId,
-      node,
-      action: 'node.deleted',
-      actorId: userId,
+    // Locked transaction: the subtree is collected in memory, so a child
+    // created mid-delete must not survive under a trashed parent.
+    return this.tx.run(async () => {
+      await this.repository.lockDataroom(node.dataroomId);
+      const dataroomNodes = await this.repository.listNodes(node.dataroomId);
+      const deletedIds = collectSubtreeIds(dataroomNodes, nodeId);
+      await this.repository.setNodesDeleted(deletedIds, userId);
+      await this.workspace.recordActivity({
+        dataroomId: node.dataroomId,
+        node,
+        action: 'node.deleted',
+        actorId: userId,
+      });
+      return { deletedIds };
     });
-    await this.repository.setNodesDeleted(deletedIds, userId);
-    return { deletedIds };
   }
 
   /** Bring a trashed subtree back. Lands at the original parent, or the room root
@@ -199,31 +216,36 @@ export class NodesService {
     if (!node || node.deletedAt === null) throw new NodeNotFoundError('Trashed item not found');
     await this.workspace.assertRole(node.dataroomId, userId, 'editor');
 
-    const targetParentId = await this.resolveRestoreParent(node);
-    const name = nextAvailableName(
-      await this.repository.siblingNames(node.dataroomId, targetParentId, node.id),
-      node.name,
-    );
+    // Locked transaction: the target parent, the free name, and the trashed
+    // subtree are all read before writing — none may shift mid-restore.
+    return this.tx.run(async () => {
+      await this.repository.lockDataroom(node.dataroomId);
+      const targetParentId = await this.resolveRestoreParent(node);
+      const name = nextAvailableName(
+        await this.repository.siblingNames(node.dataroomId, targetParentId, node.id),
+        node.name,
+      );
 
-    const deletedNodes = await this.repository.listDeletedNodes([node.dataroomId]);
-    const subtreeIds = collectSubtreeIds(deletedNodes, nodeId);
+      const deletedNodes = await this.repository.listDeletedNodes([node.dataroomId]);
+      const subtreeIds = collectSubtreeIds(deletedNodes, nodeId);
 
-    // Reparent/rename the root while it is still trashed (the live-name unique
-    // index ignores it), then clear the trash flag on the whole subtree.
-    if (targetParentId !== node.parentId || name !== node.name) {
-      await this.repository.moveNode({ id: nodeId, parentId: targetParentId, name, userId });
-    }
-    await this.repository.restoreNodes(subtreeIds);
+      // Reparent/rename the root while it is still trashed (the live-name unique
+      // index ignores it), then clear the trash flag on the whole subtree.
+      if (targetParentId !== node.parentId || name !== node.name) {
+        await this.repository.moveNode({ id: nodeId, parentId: targetParentId, name, userId });
+      }
+      await this.repository.restoreNodes(subtreeIds);
 
-    const restored = await this.repository.findNode(nodeId);
-    if (!restored) throw new NodeNotFoundError();
-    await this.workspace.recordActivity({
-      dataroomId: node.dataroomId,
-      node: restored,
-      action: 'node.restored',
-      actorId: userId,
+      const restored = await this.repository.findNode(nodeId);
+      if (!restored) throw new NodeNotFoundError();
+      await this.workspace.recordActivity({
+        dataroomId: node.dataroomId,
+        node: restored,
+        action: 'node.restored',
+        actorId: userId,
+      });
+      return restored;
     });
-    return restored;
   }
 
   /** Permanently delete a trashed subtree: rows (cascade), favorites, and blobs. */
@@ -231,11 +253,14 @@ export class NodesService {
     const node = await this.repository.findNode(nodeId);
     if (!node || node.deletedAt === null) throw new NodeNotFoundError('Trashed item not found');
     await this.workspace.assertRole(node.dataroomId, userId, 'editor');
-    const deletedNodes = await this.repository.listDeletedNodes([node.dataroomId]);
-    const deletedIds = collectSubtreeIds(deletedNodes, nodeId);
-    const fileIds = fileIdsIn(deletedNodes, deletedIds);
-    await this.repository.deleteNode(nodeId);
-    await this.workspace.removeFavoritesForNodes(deletedIds);
+    // One transaction for rows + favorites; blob cleanup is best-effort after commit.
+    const { deletedIds, fileIds } = await this.tx.run(async () => {
+      const deletedNodes = await this.repository.listDeletedNodes([node.dataroomId]);
+      const ids = collectSubtreeIds(deletedNodes, nodeId);
+      await this.repository.deleteNode(nodeId);
+      await this.workspace.removeFavoritesForNodes(ids);
+      return { deletedIds: ids, fileIds: fileIdsIn(deletedNodes, ids) };
+    });
     await cleanupBlobs(this.storage, fileIds);
     return { deletedIds };
   }
@@ -277,17 +302,20 @@ export class NodesService {
       roleAtLeast(room.myRole, 'editor'),
     );
     if (rooms.length === 0) return { deletedIds: [] };
-    const deletedNodes = await this.repository.listDeletedNodes(rooms.map((room) => room.id));
-    const roots = selectTrashRoots(deletedNodes);
+    // One transaction: "empty" must not stop halfway through the roots.
+    const { deletedIds, fileIds } = await this.tx.run(async () => {
+      const deletedNodes = await this.repository.listDeletedNodes(rooms.map((room) => room.id));
+      const roots = selectTrashRoots(deletedNodes);
 
-    const deletedIds: string[] = [];
-    for (const root of roots) {
-      const ids = collectSubtreeIds(deletedNodes, root.id);
-      await this.repository.deleteNode(root.id);
-      deletedIds.push(...ids);
-    }
-    await this.workspace.removeFavoritesForNodes(deletedIds);
-    await cleanupBlobs(this.storage, fileIdsIn(deletedNodes, deletedIds));
+      const ids: string[] = [];
+      for (const root of roots) {
+        ids.push(...collectSubtreeIds(deletedNodes, root.id));
+        await this.repository.deleteNode(root.id);
+      }
+      await this.workspace.removeFavoritesForNodes(ids);
+      return { deletedIds: ids, fileIds: fileIdsIn(deletedNodes, ids) };
+    });
+    await cleanupBlobs(this.storage, fileIds);
     return { deletedIds };
   }
 

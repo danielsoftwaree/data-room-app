@@ -35,20 +35,14 @@ export function DocumentGrid({
       {nodes.map((node) => {
         const selected = selectedIds.has(node.id);
         return (
+          // The tile div is a mouse convenience only; the accessible click
+          // target is the name button inside, so no control nests in a control.
           <div
             key={node.id}
             ref={node.id === selectNodeId ? (element) => onReveal(node, element) : undefined}
-            role="button"
-            tabIndex={0}
             data-node-id={node.id}
             onClick={() => onSelectRow(node)}
             onDoubleClick={() => onOpen(node)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                onOpen(node);
-              }
-            }}
             className={cn(
               'group relative flex aspect-[4/3] cursor-pointer flex-col items-start justify-between rounded-lg border bg-card p-4 text-left select-none hover:bg-accent/40',
               selected ? 'border-primary bg-primary/10' : undefined,
@@ -88,7 +82,26 @@ export function DocumentGrid({
             ) : (
               <FilePdfIcon weight="fill" className="size-7 text-destructive" />
             )}
-            <span className="line-clamp-2 text-sm font-medium">{node.name}</span>
+            <button
+              type="button"
+              className="line-clamp-2 cursor-pointer rounded-sm text-left text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectRow(node);
+              }}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                onOpen(node);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  onOpen(node);
+                }
+              }}
+            >
+              {node.name}
+            </button>
             <span className="text-xs text-muted-foreground">{formatDate(node.updatedAt)}</span>
           </div>
         );

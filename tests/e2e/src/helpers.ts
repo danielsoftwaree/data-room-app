@@ -97,7 +97,17 @@ export async function createFolderViaUi(page: Page, name: string): Promise<void>
   await page.getByRole('button', { name: 'New folder' }).click();
   await page.getByLabel('Folder name').fill(name);
   await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByText(name).first()).toBeVisible();
+  await expect(rowName(page, name)).toBeVisible();
+}
+
+/** The row's name button (the accessible open/preview target). */
+export function rowName(page: Page, name: string) {
+  return page.getByRole('button', { name, exact: true });
+}
+
+/** Open a folder or the file viewer the way a user does: double-click the name. */
+export async function openRowViaUi(page: Page, name: string): Promise<void> {
+  await rowName(page, name).dblclick();
 }
 
 export async function renameRowViaUi(
@@ -109,12 +119,12 @@ export async function renameRowViaUi(
   await page.getByRole('menuitem', { name: 'Rename' }).click();
   await page.getByLabel('Name').fill(nextName);
   await page.getByRole('button', { name: 'Rename' }).click();
-  await expect(page.getByText(nextName).first()).toBeVisible();
+  await expect(rowName(page, nextName)).toBeVisible();
 }
 
-export async function deleteRowViaUi(page: Page, name: string): Promise<void> {
+/** Move a row to the trash. Deleting is reversible, so there is no confirm step. */
+export async function trashRowViaUi(page: Page, name: string): Promise<void> {
   await page.getByLabel(`Actions for ${name}`).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByText(name).first()).toBeHidden();
+  await expect(rowName(page, name)).toBeHidden();
 }

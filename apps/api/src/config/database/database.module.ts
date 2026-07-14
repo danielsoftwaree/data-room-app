@@ -2,8 +2,10 @@ import { Global, Inject, Injectable, Module } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 import { createDatabase } from '@repo/db';
 import type { Database, DatabaseConnection, Pool } from '@repo/db';
+import { TRANSACTION_RUNNER } from '../../shared/database/transaction';
 import { EnvService } from '../env';
 import { DRIZZLE, PG_POOL } from './database.tokens';
+import { DrizzleTransactionRunner } from './drizzle-transaction-runner';
 
 const DATABASE_CONNECTION = Symbol('DATABASE_CONNECTION');
 
@@ -38,8 +40,9 @@ class PgPoolShutdown implements OnApplicationShutdown {
       inject: [DATABASE_CONNECTION],
       useFactory: (connection: DatabaseConnection): Database => connection.db,
     },
+    { provide: TRANSACTION_RUNNER, useClass: DrizzleTransactionRunner },
     PgPoolShutdown,
   ],
-  exports: [DRIZZLE],
+  exports: [DRIZZLE, TRANSACTION_RUNNER],
 })
 export class DatabaseModule {}

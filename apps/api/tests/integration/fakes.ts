@@ -59,6 +59,10 @@ export class FakeDataroomsRepository implements DataroomsRepository {
   readonly members: MemberEntry[] = [];
   private seq = 0;
 
+  async lockDataroom(): Promise<void> {
+    // In-memory fake: the single-threaded test runner needs no locking.
+  }
+
   private nextId(): string {
     this.seq += 1;
     return `00000000-0000-4000-8000-${String(this.seq).padStart(12, '0')}`;

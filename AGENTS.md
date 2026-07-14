@@ -32,6 +32,7 @@
   - `tooling/*` — shared configs as workspace packages (`@repo/typescript-config`, `@repo/lint-config`, `@repo/format-config`, `@repo/tailwind-config`).
 - Entry points: `apps/web/src/main.tsx`, `apps/api/src/main.ts` (HTTP :3000), `apps/api/src/openapi.ts` (emits `openapi.json`, no listener).
 - Important directories: `docs/monorepo.md` (dependency rules + "Keeping order"), `docs/architecture.md`, `docs/design-system/` (design references), `tests/e2e/` (Playwright e2e suite).
+- Agent skills: canonical source is `.agents/skills/` (tracked, pinned by `skills-lock.json`). `.claude/skills` is a local gitignored junction to it — recreate with `mklink /J .claude\skills <repo>\.agents\skills` on a fresh clone.
 - Auth: Clerk, optional by design. A global `ClerkAuthGuard` (`apps/api/src/shared/auth/`) verifies bearer tokens when `CLERK_SECRET_KEY` is set; without it the API falls back to a demo user so `bun run dev` stays zero-config.
 - Local development command: `bun run dev` (turbo runs web on :5173 with `/api` proxy → api on :3000).
 - Test command: `bun run test` (domain rules, api service + exception filter, HTTP e2e over fakes — no PostgreSQL required).

@@ -11,7 +11,7 @@ test('creates, renames, blocks duplicate names, and deletes a data room', async 
 
   try {
     await page.goto('/');
-    await page.getByRole('button', { name: 'New data room' }).click();
+    await page.getByRole('button', { name: 'New data room', exact: true }).first().click();
     await page.getByLabel('Data room name').fill(name);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByText(name).first()).toBeVisible();
@@ -21,7 +21,8 @@ test('creates, renames, blocks duplicate names, and deletes a data room', async 
     expect(created).toBeDefined();
     createdIds.push(created!.id);
 
-    await page.getByRole('button', { name: 'New data room' }).click();
+    // Duplicate names (case-insensitive) are blocked before submit.
+    await page.getByRole('button', { name: 'New data room', exact: true }).first().click();
     await page.getByLabel('Data room name').fill(name.toLocaleLowerCase());
     await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -32,9 +33,10 @@ test('creates, renames, blocks duplicate names, and deletes a data room', async 
     await page.getByRole('button', { name: 'Rename' }).click();
     await expect(page.getByText(renamed).first()).toBeVisible();
 
+    // Deleting a whole data room is irreversible, so it asks for confirmation.
     await page.getByLabel(`Actions for ${renamed}`).click();
     await page.getByRole('menuitem', { name: 'Delete' }).click();
-    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByText(renamed).first()).toBeHidden();
   } finally {
     for (const id of createdIds) await deleteDataroom(request, id);

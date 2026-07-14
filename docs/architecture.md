@@ -140,12 +140,24 @@ them, never re-implement fetching.
     HTTP error mapping. API-only ports/value objects stay module-local; shared
     business rules remain in `@repo/domain`.
 
+## Transactions
+
+Multi-step database writes run inside one PostgreSQL transaction. Services wrap
+them in a `TransactionRunner` (`apps/api/src/shared/database/transaction.ts`);
+repositories join the open transaction transparently through an
+`AsyncLocalStorage` context, so their signatures never mention it. Structural
+tree mutations (move, trash, restore) additionally take a per-room
+`pg_advisory_xact_lock`, because they validate the subtree in memory before
+writing. Blob storage stays outside the transaction: uploads compensate by
+deleting the metadata row when the blob write fails, and purge cleans blobs
+best-effort after commit.
+
 ## Known debt
 
 Tracked honestly instead of papered over.
 
-- **Repository operations are not transactional** across metadata and blob
-  storage. The current service compensates by deleting a metadata row when blob
-  writes fail; revisit when write workflows need multi-step atomicity.
+- **Blob writes are not part of the database transaction** (S3 cannot join
+  one). Uploads compensate; a failed compensation can leave a file node without
+  bytes. An outbox/cleanup sweep is the production follow-up.
 - **Downloads buffer whole files in memory** (bounded by the 50 MB upload
   limit). Streaming from S3 is the production follow-up.

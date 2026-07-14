@@ -1,8 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getApiErrorMessage,
+  getGetDataroomQueryKey,
+  getGetStorageUsageQueryKey,
+  getListActivityQueryKey,
   getListDataroomsQueryKey,
+  getListFavoritesQueryKey,
   getListNodesQueryKey,
+  getListTrashQueryKey,
   useCreateFile as useCreateFileBase,
   useCreateFolder as useCreateFolderBase,
   useDeleteNode as useDeleteNodeBase,
@@ -22,10 +27,21 @@ export type NodeMutations = ReturnType<typeof useNodeMutations>;
  */
 export function useNodeMutations(dataroomId: string) {
   const queryClient = useQueryClient();
+  // Everything a node mutation can touch, and nothing else (no blanket
+  // cache reset): the node list, room metadata/dashboard, the activity feed,
+  // and the sidebar surfaces (trash count, favorites, storage).
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: getListNodesQueryKey(dataroomId) });
-    void queryClient.invalidateQueries({ queryKey: getListDataroomsQueryKey() });
-    void queryClient.invalidateQueries();
+    for (const queryKey of [
+      getListNodesQueryKey(dataroomId),
+      getGetDataroomQueryKey(dataroomId),
+      getListDataroomsQueryKey(),
+      getListActivityQueryKey(dataroomId),
+      getListTrashQueryKey(),
+      getListFavoritesQueryKey(),
+      getGetStorageUsageQueryKey(),
+    ]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
   };
 
   const createFolder = useCreateFolderBase({

@@ -14,9 +14,10 @@ import {
   sql,
   users,
 } from '@repo/db';
-import type { Database, SQL } from '@repo/db';
+import type { Database, DatabaseExecutor, SQL } from '@repo/db';
 import type { Dataroom, DataroomNode, FileNode, FolderNode, User } from '@repo/domain';
 import { DRIZZLE } from '../../../config/database/database.tokens';
+import { transactionContext } from '../../../shared/database/transaction';
 import type {
   CreateFileNodeInput,
   CreateFolderInput,
@@ -34,7 +35,19 @@ type UserRow = typeof users.$inferSelect;
 /** Metadata persistence only - file bytes live behind BlobStorage. */
 @Injectable()
 export class DrizzleDataroomsRepository implements DataroomsRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  constructor(@Inject(DRIZZLE) private readonly database: Database) {}
+
+  /** The ambient transaction when a TransactionRunner.run is active, else the pool. */
+  private get db(): DatabaseExecutor {
+    return transactionContext.current() ?? this.database;
+  }
+
+  async lockDataroom(dataroomId: string): Promise<void> {
+    // Serializes structural mutations (move/trash/restore) per room so
+    // read-then-write subtree logic cannot interleave. Transaction-scoped:
+    // released automatically on commit/rollback.
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${dataroomId}, 0))`);
+  }
 
   async listDataroomsForUser(userId: string): Promise<DataroomForUser[]> {
     const rows = await this.db

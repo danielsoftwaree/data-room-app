@@ -6,4 +6,4 @@ export { activity, dataroomMembers, datarooms, favorites, fileBlobs, nodes, user
 export { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 export type { SQL } from 'drizzle-orm';
 export type { Pool } from 'pg';
-export type { Database } from './types';
+export type { Database, DatabaseExecutor, Transaction } from './types';

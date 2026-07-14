@@ -2,9 +2,12 @@ import { expect, test } from '@playwright/test';
 import {
   createDataroom,
   deleteDataroom,
+  openRowViaUi,
   pdfFile,
   renameRowViaUi,
+  rowName,
   textFile,
+  trashRowViaUi,
   uniqueName,
 } from '../src/helpers';
 
@@ -18,25 +21,27 @@ test('uploads, views, renames, rejects non-PDF, suffixes duplicates, and deletes
   try {
     await page.goto(`/datarooms/${dataroom.id}`);
     await fileInput.setInputFiles(pdfFile('report.pdf'));
-    await expect(page.getByText('report.pdf').first()).toBeVisible();
+    await expect(rowName(page, 'report.pdf')).toBeVisible();
 
+    // A same-name upload lands next to the original with a numeric suffix.
     await fileInput.setInputFiles(pdfFile('report.pdf'));
-    await expect(page.getByText('report (1).pdf').first()).toBeVisible();
+    await expect(rowName(page, 'report (1).pdf')).toBeVisible();
 
+    // Non-PDF files are rejected client-side with a named reason.
     await fileInput.setInputFiles(textFile('notes.txt'));
     await expect(page.getByText(/only PDF files are allowed/i)).toBeVisible();
-    await expect(page.getByText('notes.txt')).toHaveCount(0);
+    await expect(rowName(page, 'notes.txt')).toBeHidden();
 
-    await page.getByRole('button', { name: /^report\.pdf/ }).click();
-    await expect(page.getByRole('dialog')).toContainText('report.pdf');
-    await expect(page.locator('iframe[title="report.pdf"]')).toBeVisible();
+    // Double-clicking a file opens the in-app viewer (react-pdf modal).
+    await openRowViaUi(page, 'report.pdf');
+    const viewer = page.getByRole('dialog');
+    await expect(viewer).toContainText('report.pdf');
+    await expect(viewer.getByRole('button', { name: 'Zoom in' })).toBeVisible();
     await page.keyboard.press('Escape');
+    await expect(viewer).toBeHidden();
 
     await renameRowViaUi(page, 'report.pdf', 'renamed.pdf');
-    await page.getByLabel('Actions for renamed.pdf').click();
-    // Deleting moves the file to the trash immediately - no confirm dialog.
-    await page.getByRole('menuitem', { name: 'Delete' }).click();
-    await expect(page.getByText('renamed.pdf').first()).toBeHidden();
+    await trashRowViaUi(page, 'renamed.pdf');
   } finally {
     await deleteDataroom(request, dataroom.id);
   }

@@ -36,6 +36,12 @@ export interface DataroomMeta {
 }
 
 export interface DataroomsRepository {
+  /**
+   * Takes a per-room mutual-exclusion lock for the rest of the current
+   * transaction, serializing structural mutations (move/trash/restore) so
+   * read-then-write subtree logic cannot interleave. No-op outside PostgreSQL.
+   */
+  lockDataroom(dataroomId: string): Promise<void>;
   listDataroomsForUser(userId: string): Promise<DataroomForUser[]>;
   dataroomMeta(dataroomIds: readonly string[]): Promise<Map<string, DataroomMeta>>;
   createDataroom(name: string, userId: string): Promise<Dataroom>;

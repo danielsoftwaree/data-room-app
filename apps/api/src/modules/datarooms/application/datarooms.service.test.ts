@@ -82,6 +82,10 @@ class FakeDataroomsRepository implements DataroomsRepository {
 
   constructor(private readonly membership: Membership) {}
 
+  async lockDataroom(): Promise<void> {
+    // In-memory fake: the single-threaded test runner needs no locking.
+  }
+
   private nextId(): string {
     this.seq += 1;
     return `id-${this.seq}`;
@@ -464,9 +468,11 @@ function setup(): {
   const repo = new FakeDataroomsRepository(membership);
   const storage = new FakeBlobStorage();
   const workspace = new WorkspaceService(new FakeWorkspaceRepository(membership));
+  // In-memory fakes have no transactions; the runner just executes the callback.
+  const tx = { run: <T>(fn: () => Promise<T>): Promise<T> => fn() };
   return {
-    dataroomsService: new DataroomsService(repo, storage, workspace),
-    nodesService: new NodesService(repo, storage, workspace),
+    dataroomsService: new DataroomsService(repo, storage, workspace, tx),
+    nodesService: new NodesService(repo, storage, workspace, tx),
     repo,
     storage,
     workspace,

@@ -30,12 +30,29 @@ export function useFavorites() {
   const add = useAddFavorite({ mutation: { onSuccess: invalidate, onError } });
   const remove = useRemoveFavorite({ mutation: { onSuccess: invalidate, onError } });
 
+  // Optimistic star: while a toggle is in flight, report its target as already
+  // flipped. On error the pending flag clears and the star snaps back — no
+  // cache surgery or rollback bookkeeping needed.
+  const pendingAddKey =
+    add.isPending && add.variables
+      ? favoriteKey(add.variables.data.dataroomId, add.variables.data.nodeId ?? null)
+      : null;
+  const pendingRemoveKey =
+    remove.isPending && remove.variables
+      ? favoriteKey(remove.variables.data.dataroomId, remove.variables.data.nodeId ?? null)
+      : null;
+  const isFavorite = (dataroomId: string, nodeId: string | null = null) => {
+    const key = favoriteKey(dataroomId, nodeId);
+    if (key === pendingAddKey) return true;
+    if (key === pendingRemoveKey) return false;
+    return keys.has(key);
+  };
+
   return {
-    isFavorite: (dataroomId: string, nodeId: string | null = null) =>
-      keys.has(favoriteKey(dataroomId, nodeId)),
+    isFavorite,
     toggle: (dataroomId: string, nodeId: string | null = null) => {
       const data = { dataroomId, nodeId };
-      if (keys.has(favoriteKey(dataroomId, nodeId))) remove.mutate({ data });
+      if (isFavorite(dataroomId, nodeId)) remove.mutate({ data });
       else add.mutate({ data });
     },
     isPending: add.isPending || remove.isPending,

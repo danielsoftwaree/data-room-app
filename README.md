@@ -56,7 +56,8 @@ MSW mock and the client.
 bun run dev        # web + api (mock API, zero config)
 bun run dev:real   # against the real Nest + PostgreSQL backend
 bun run build      # full ordered build
-bun run test       # domain + api + HTTP integration (no Postgres needed)
+bun run test       # domain + web helpers + api + HTTP integration (no Postgres needed)
+bun run test:e2e   # Playwright against the real API (needs PostgreSQL; also runs in CI)
 bun run typecheck
 bun run lint
 bun run generate   # regenerate the API client from OpenAPI

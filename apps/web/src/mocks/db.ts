@@ -14,13 +14,12 @@ import type {
   FileNode,
   FolderNode,
   MemberRole,
-  NameValidationError,
   User,
 } from '@repo/domain';
 import {
   collectSubtreeIds,
   isNameTaken,
-  NODE_NAME_MAX_LENGTH,
+  NODE_NAME_ERROR_MESSAGES,
   nextAvailableName,
   roleAtLeast,
   selectTrashRoots,
@@ -48,12 +47,6 @@ export class MockError extends Error {
     this.name = 'MockError';
   }
 }
-
-const NAME_ERROR_MESSAGES: Record<NameValidationError, string> = {
-  empty: 'Name cannot be empty',
-  'too-long': `Name cannot be longer than ${NODE_NAME_MAX_LENGTH} characters`,
-  'invalid-chars': 'Name contains characters that are not allowed: \\ / : * ? " < > |',
-};
 
 const DEMO_USERS: User[] = [
   {
@@ -122,7 +115,7 @@ function uid(): string {
 
 function requireName(raw: string): string {
   const result = validateNodeName(raw);
-  if (!result.ok) throw new MockError(400, NAME_ERROR_MESSAGES[result.error]);
+  if (!result.ok) throw new MockError(400, NODE_NAME_ERROR_MESSAGES[result.error]);
   return result.name;
 }
 

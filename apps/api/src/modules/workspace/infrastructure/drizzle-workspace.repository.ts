@@ -15,9 +15,10 @@ import {
   sql,
   users,
 } from '@repo/db';
-import type { Database, SQL } from '@repo/db';
+import type { Database, DatabaseExecutor, SQL } from '@repo/db';
 import type { MemberRole, NodeType, User } from '@repo/domain';
 import { DRIZZLE } from '../../../config/database/database.tokens';
+import { transactionContext } from '../../../shared/database/transaction';
 import type {
   ActivityRecord,
   FavoriteRecord,
@@ -29,9 +30,22 @@ import type {
 
 type UserRow = typeof users.$inferSelect;
 
+/** Stable identity used when auth is not configured (mirrors the MSW mock's demo user). */
+const DEMO_USER = {
+  id: '6e5e44cc-0000-4000-8000-000000000001',
+  name: 'Jane Smith',
+  email: 'jane@acme.com',
+  color: '#6366f1',
+} as const;
+
 @Injectable()
 export class DrizzleWorkspaceRepository implements WorkspaceRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  constructor(@Inject(DRIZZLE) private readonly database: Database) {}
+
+  /** The ambient transaction when a TransactionRunner.run is active, else the pool. */
+  private get db(): DatabaseExecutor {
+    return transactionContext.current() ?? this.database;
+  }
 
   async listUsers(): Promise<User[]> {
     const rows = await this.db.select().from(users).orderBy(asc(users.name));
@@ -45,8 +59,10 @@ export class DrizzleWorkspaceRepository implements WorkspaceRepository {
 
   async getDefaultUser(): Promise<User> {
     const [row] = await this.db.select().from(users).orderBy(asc(users.createdAt)).limit(1);
-    if (!row) throw new Error('No demo users are seeded');
-    return toUser(row);
+    if (row) return toUser(row);
+    // Demo mode against an empty database (migrations wipe the seeds):
+    // provision the demo identity on first use instead of failing every request.
+    return this.upsertUser(DEMO_USER);
   }
 
   async upsertUser(input: {

@@ -10,6 +10,7 @@ import { DataroomsModule } from '../../src/modules/datarooms/datarooms.module';
 import { HealthModule } from '../../src/modules/health/health.module';
 import { BLOB_STORAGE } from '../../src/modules/storage/blob-storage';
 import { WORKSPACE_REPOSITORY } from '../../src/modules/workspace/domain/workspace.repository.port';
+import { TRANSACTION_RUNNER } from '../../src/shared/database/transaction';
 import { ApiExceptionFilter } from '../../src/shared/filters/api-exception.filter';
 import { createPdfBuffer } from '../../src/shared/test-utils';
 import {
@@ -21,7 +22,14 @@ import {
 
 /** Satisfies the DRIZZLE token that StorageModule/Repository inject; never touched thanks to the overrides. */
 @Global()
-@Module({ providers: [{ provide: DRIZZLE, useValue: {} }], exports: [DRIZZLE] })
+@Module({
+  providers: [
+    { provide: DRIZZLE, useValue: {} },
+    // In-memory fakes have no transactions; the runner just executes the callback.
+    { provide: TRANSACTION_RUNNER, useValue: { run: <T>(fn: () => Promise<T>) => fn() } },
+  ],
+  exports: [DRIZZLE, TRANSACTION_RUNNER],
+})
 class FakeDatabaseModule {}
 
 /**

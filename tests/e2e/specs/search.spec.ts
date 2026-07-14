@@ -3,11 +3,13 @@ import {
   createDataroom,
   createFolder,
   deleteDataroom,
+  openRowViaUi,
+  rowName,
   uniqueName,
   uploadPdf,
 } from '../src/helpers';
 
-test('searches by name, shows result locations, clears back to tree, and opens folder results', async ({
+test('searches by name via the URL, clears back to the tree, and opens folder results', async ({
   page,
   request,
 }) => {
@@ -19,20 +21,25 @@ test('searches by name, shows result locations, clears back to tree, and opens f
 
   try {
     await page.goto(`/datarooms/${dataroom.id}`);
-    await page.getByPlaceholder('Search files and folders').fill('balance');
+    const searchInput = page.getByPlaceholder('Search this data room');
+    await searchInput.fill('balance');
 
+    // Search state lives in the URL, so it deep-links and survives reload.
     await expect(page).toHaveURL(/q=balance/);
-    await expect(page.getByText('Q1 Balance Sheet.pdf').first()).toBeVisible();
-    await expect(page.getByText(`${dataroom.name} / Financials / Statements`)).toBeVisible();
-    await expect(page.getByText('Legal Summary.pdf')).toHaveCount(0);
+    await expect(rowName(page, 'Q1 Balance Sheet.pdf')).toBeVisible();
+    await expect(rowName(page, 'Legal Summary.pdf')).toBeHidden();
+    await page.reload();
+    await expect(rowName(page, 'Q1 Balance Sheet.pdf')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Clear search' }).click();
+    // Escape clears the search and brings the tree back.
+    await searchInput.press('Escape');
     await expect(page).not.toHaveURL(/q=/);
-    await expect(page.getByText('Financials').first()).toBeVisible();
+    await expect(rowName(page, 'Financials')).toBeVisible();
 
-    await page.getByPlaceholder('Search files and folders').fill('statements');
-    await page.getByRole('link', { name: /^Statements/ }).click();
-    await expect(page).toHaveURL(new RegExp(`/folders/${statements.id}$`));
+    // A folder found by search opens in place.
+    await searchInput.fill('statements');
+    await openRowViaUi(page, 'Statements');
+    await expect(page).toHaveURL(new RegExp(`/folders/${statements.id}`));
     await expect(page.getByRole('heading', { name: 'Statements' })).toBeVisible();
   } finally {
     await deleteDataroom(request, dataroom.id);

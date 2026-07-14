@@ -94,6 +94,13 @@ const INVALID_NAME_CHARS = /[\\/:*?"<>|]/;
 
 export type NameValidationError = 'empty' | 'too-long' | 'invalid-chars';
 
+/** One user-facing message per validation error — the UI, the mock API and the real API all show the same copy. */
+export const NODE_NAME_ERROR_MESSAGES: Record<NameValidationError, string> = {
+  empty: 'Name cannot be empty',
+  'too-long': `Name cannot be longer than ${NODE_NAME_MAX_LENGTH} characters`,
+  'invalid-chars': 'Name cannot contain: \\ / : * ? " < > |',
+};
+
 export type NameValidationResult =
   { ok: true; name: string } | { ok: false; error: NameValidationError };
 

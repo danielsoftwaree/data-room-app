@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { isNameTaken, NODE_NAME_MAX_LENGTH, validateNodeName } from '@repo/domain';
+import { isNameTaken, NODE_NAME_ERROR_MESSAGES, validateNodeName } from '@repo/domain';
 import { Button } from '@repo/ui/components/button';
 import {
   Dialog,
@@ -11,12 +11,6 @@ import {
 } from '@repo/ui/components/dialog';
 import { Input } from '@repo/ui/components/input';
 import { Label } from '@repo/ui/components/label';
-
-const VALIDATION_MESSAGE = {
-  empty: 'Name cannot be empty',
-  'too-long': `Name cannot be longer than ${NODE_NAME_MAX_LENGTH} characters`,
-  'invalid-chars': 'Name cannot contain: \\ / : * ? " < > |',
-} as const;
 
 interface NameFormProps {
   title: string;
@@ -82,7 +76,7 @@ function NameForm({
   const duplicate = validation.ok && !unchanged && isNameTaken(existingNames, trimmed);
 
   let inlineError: string | null = null;
-  if (!validation.ok) inlineError = VALIDATION_MESSAGE[validation.error];
+  if (!validation.ok) inlineError = NODE_NAME_ERROR_MESSAGES[validation.error];
   else if (duplicate) inlineError = `"${trimmed}" already exists here`;
 
   const canSubmit = validation.ok && !duplicate && !pending;

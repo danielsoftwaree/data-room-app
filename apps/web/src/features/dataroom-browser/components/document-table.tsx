@@ -71,17 +71,16 @@ export function DocumentTable(props: Readonly<DocumentTableProps>) {
           <DocumentRow key={node.id} node={node} {...props} />
         ))}
         {props.uploadingNames.map((name) => (
-          <div
-            key={name}
-            className="grid grid-cols-[36px_minmax(260px,1.7fr)_1fr_40px] items-center border-t px-3 py-3"
-          >
+          <div key={name} className={cn('grid items-center border-t px-3 py-3', TABLE_GRID)}>
             <Checkbox disabled aria-label={`Uploading ${name}`} />
             <div className="flex items-center gap-3">
               <FilePdfIcon weight="fill" className="size-5 text-destructive" />
               <span className="truncate text-sm font-medium">{name}</span>
             </div>
-            <Progress value={null} />
-            <XIcon className="size-4 text-muted-foreground" />
+            <div className="col-span-4 pr-4">
+              <Progress value={null} />
+            </div>
+            <XIcon className="size-4 justify-self-end text-muted-foreground" />
           </div>
         ))}
       </div>
@@ -109,19 +108,13 @@ function DocumentRow({
   const selected = selectedIds.has(node.id);
   const owner = node.createdBy ? usersById.get(node.createdBy) : undefined;
   return (
+    // The div is a mouse convenience only; the accessible click target is the
+    // name button below, so no interactive control nests inside another.
     <div
       ref={node.id === selectNodeId ? (element) => onReveal(node, element) : undefined}
-      role="button"
-      tabIndex={0}
       data-node-id={node.id}
       onClick={() => onSelectRow(node)}
       onDoubleClick={() => onOpen(node)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          onOpen(node);
-        }
-      }}
       className={cn(
         'group grid cursor-pointer items-center border-t px-3 py-2.5 text-sm select-none hover:bg-accent/40',
         TABLE_GRID,
@@ -145,14 +138,31 @@ function DocumentRow({
       ) : (
         <span />
       )}
-      <div className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        className="flex min-w-0 cursor-pointer items-center gap-3 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelectRow(node);
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          onOpen(node);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            onOpen(node);
+          }
+        }}
+      >
         {node.type === 'folder' ? (
-          <FolderFillIcon weight="fill" className="size-5 text-primary" />
+          <FolderFillIcon weight="fill" className="size-5 shrink-0 text-primary" />
         ) : (
-          <FilePdfIcon weight="fill" className="size-5 text-destructive" />
+          <FilePdfIcon weight="fill" className="size-5 shrink-0 text-destructive" />
         )}
         <span className="truncate font-medium">{node.name}</span>
-      </div>
+      </button>
       <span className="text-muted-foreground">{formatDate(node.updatedAt)}</span>
       <span className="text-muted-foreground">
         {node.type === 'file' ? formatFileSize(node.size) : '\u2014'}
@@ -183,7 +193,12 @@ function RowActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" onClick={(event) => event.stopPropagation()}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Actions for ${node.name}`}
+          onClick={(event) => event.stopPropagation()}
+        >
           <MoreVerticalIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>

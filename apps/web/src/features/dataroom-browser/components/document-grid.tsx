@@ -1,7 +1,9 @@
 import type { DataroomNode } from '@repo/domain';
 import { Checkbox } from '@repo/ui/components/checkbox';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
+import { LinkIcon } from 'lucide-react';
 import { formatDate } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
@@ -102,7 +104,19 @@ export function DocumentGrid({
             >
               {node.name}
             </button>
-            <span className="text-xs text-muted-foreground">{formatDate(node.updatedAt)}</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {formatDate(node.updatedAt)}
+              {node.type === 'file' && node.shareSlug ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span role="img" aria-label="Shared via link" className="text-muted-foreground">
+                      <LinkIcon className="size-3" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Shared via link</TooltipContent>
+                </Tooltip>
+              ) : null}
+            </span>
           </div>
         );
       })}

@@ -12,7 +12,8 @@ const DB_NAME = 'dataroom-dev-mocks';
 const DB_VERSION = 1;
 const STORE_NAME = 'state';
 // Bumped when the seed/shape changes so stale local snapshots are discarded.
-const STATE_KEY = 'v3';
+// v4: file nodes carry shareSlug and the store persists share links.
+const STATE_KEY = 'v4';
 
 export interface PersistedFile {
   contentType: string;
@@ -44,12 +45,21 @@ export interface PersistedActivity {
   createdAt: number;
 }
 
+export interface PersistedShare {
+  nodeId: string;
+  slug: string;
+  /** Plaintext — mock only; the real API stores a one-way hash, never the password. */
+  password: string;
+  createdAt: number;
+}
+
 export interface PersistedState {
   datarooms: Dataroom[];
   nodes: DataroomNode[];
   members: PersistedMember[];
   favorites: PersistedFavorite[];
   activity: PersistedActivity[];
+  shares: PersistedShare[];
   /** nodeId -> stored file content (Uint8Array survives structured clone). */
   files: [string, PersistedFile][];
   clock: number;

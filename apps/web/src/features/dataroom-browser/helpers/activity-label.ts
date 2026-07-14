@@ -11,6 +11,8 @@ const ACTION_LABELS: Record<ActivityDto['action'], string> = {
   'member.added': 'Member added',
   'member.removed': 'Member removed',
   'member.updated': 'Member updated',
+  'share.created': 'Shared via link',
+  'share.removed': 'Share link removed',
 };
 
 /** Human-readable label for an activity entry, with the affected node name when present. */

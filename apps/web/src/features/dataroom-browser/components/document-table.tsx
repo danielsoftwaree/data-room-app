@@ -10,9 +10,10 @@ import {
 } from '@repo/ui/components/dropdown-menu';
 import { Button } from '@repo/ui/components/button';
 import { Progress } from '@repo/ui/components/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
-import { MoreVerticalIcon, MoveIcon, PencilIcon, Trash2Icon, XIcon } from 'lucide-react';
+import { LinkIcon, MoreVerticalIcon, MoveIcon, PencilIcon, Trash2Icon, XIcon } from 'lucide-react';
 import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
@@ -31,6 +32,7 @@ interface DocumentTableProps {
   onSelectRow: (node: DataroomNode) => void;
   onOpen: (node: DataroomNode) => void;
   onToggleAll: () => void;
+  onShare: (node: DataroomNode) => void;
   onRename: (node: DataroomNode) => void;
   onMove: (node: DataroomNode) => void;
   onDelete: (node: DataroomNode) => void;
@@ -101,6 +103,7 @@ function DocumentRow({
   onToggleSelect,
   onSelectRow,
   onOpen,
+  onShare,
   onRename,
   onMove,
   onDelete,
@@ -138,31 +141,47 @@ function DocumentRow({
       ) : (
         <span />
       )}
-      <button
-        type="button"
-        className="flex min-w-0 cursor-pointer items-center gap-3 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelectRow(node);
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-          onOpen(node);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
+      <span className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          className="flex min-w-0 cursor-pointer items-center gap-3 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelectRow(node);
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
             onOpen(node);
-          }
-        }}
-      >
-        {node.type === 'folder' ? (
-          <FolderFillIcon weight="fill" className="size-5 shrink-0 text-primary" />
-        ) : (
-          <FilePdfIcon weight="fill" className="size-5 shrink-0 text-destructive" />
-        )}
-        <span className="truncate font-medium">{node.name}</span>
-      </button>
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              onOpen(node);
+            }
+          }}
+        >
+          {node.type === 'folder' ? (
+            <FolderFillIcon weight="fill" className="size-5 shrink-0 text-primary" />
+          ) : (
+            <FilePdfIcon weight="fill" className="size-5 shrink-0 text-destructive" />
+          )}
+          <span className="truncate font-medium">{node.name}</span>
+        </button>
+        {node.type === 'file' && node.shareSlug ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                role="img"
+                aria-label="Shared via link"
+                className="shrink-0 text-muted-foreground"
+              >
+                <LinkIcon className="size-3.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Shared via link</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </span>
       <span className="text-muted-foreground">{formatDate(node.updatedAt)}</span>
       <span className="text-muted-foreground">
         {node.type === 'file' ? formatFileSize(node.size) : '\u2014'}
@@ -172,7 +191,13 @@ function DocumentRow({
       <span className="flex items-center justify-end gap-0.5">
         <FavoriteButton favorite={isFavorite(node.id)} onToggle={() => onToggleFavorite(node.id)} />
         {canEdit ? (
-          <RowActions node={node} onRename={onRename} onMove={onMove} onDelete={onDelete} />
+          <RowActions
+            node={node}
+            onShare={onShare}
+            onRename={onRename}
+            onMove={onMove}
+            onDelete={onDelete}
+          />
         ) : null}
       </span>
     </div>
@@ -181,11 +206,13 @@ function DocumentRow({
 
 function RowActions({
   node,
+  onShare,
   onRename,
   onMove,
   onDelete,
 }: Readonly<{
   node: DataroomNode;
+  onShare: (node: DataroomNode) => void;
   onRename: (node: DataroomNode) => void;
   onMove: (node: DataroomNode) => void;
   onDelete: (node: DataroomNode) => void;
@@ -203,6 +230,15 @@ function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {node.type === 'file' ? (
+          <>
+            <DropdownMenuItem onSelect={() => onShare(node)}>
+              <LinkIcon className="size-4" />
+              Share…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuItem onSelect={() => onRename(node)}>
           <PencilIcon className="size-4" />
           Rename

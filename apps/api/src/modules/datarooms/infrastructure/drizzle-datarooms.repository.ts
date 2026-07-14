@@ -10,6 +10,7 @@ import {
   isNotNull,
   isNull,
   ne,
+  nodeShares,
   nodes,
   sql,
   users,
@@ -128,24 +129,31 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
     }
 
     const rows = await this.db
-      .select()
+      .select({ node: nodes, shareSlug: nodeShares.slug })
       .from(nodes)
+      .leftJoin(nodeShares, eq(nodeShares.nodeId, nodes.id))
       .where(and(...conditions));
-    return rows.map(toNode);
+    return rows.map((row) => toNode(row.node, row.shareSlug));
   }
 
   async listDeletedNodes(dataroomIds: readonly string[]): Promise<DataroomNode[]> {
     if (dataroomIds.length === 0) return [];
     const rows = await this.db
-      .select()
+      .select({ node: nodes, shareSlug: nodeShares.slug })
       .from(nodes)
+      .leftJoin(nodeShares, eq(nodeShares.nodeId, nodes.id))
       .where(and(inArray(nodes.dataroomId, [...dataroomIds]), isNotNull(nodes.deletedAt)));
-    return rows.map(toNode);
+    return rows.map((row) => toNode(row.node, row.shareSlug));
   }
 
   async findNode(id: string): Promise<DataroomNode | undefined> {
-    const [row] = await this.db.select().from(nodes).where(eq(nodes.id, id)).limit(1);
-    return row ? toNode(row) : undefined;
+    const [row] = await this.db
+      .select({ node: nodes, shareSlug: nodeShares.slug })
+      .from(nodes)
+      .leftJoin(nodeShares, eq(nodeShares.nodeId, nodes.id))
+      .where(eq(nodes.id, id))
+      .limit(1);
+    return row ? toNode(row.node, row.shareSlug) : undefined;
   }
 
   async createFolder(input: CreateFolderInput): Promise<FolderNode> {
@@ -160,7 +168,7 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
         updatedBy: input.userId,
       })
       .returning();
-    const node = toNode(expectRow(row, 'Failed to create folder'));
+    const node = toNode(expectRow(row, 'Failed to create folder'), null);
     if (node.type !== 'folder') throw new Error('Created node is not a folder');
     return node;
   }
@@ -178,7 +186,8 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
         updatedBy: input.userId,
       })
       .returning();
-    const node = toNode(expectRow(row, 'Failed to create file node'));
+    // A freshly created file has no share yet, so its slug is trivially null.
+    const node = toNode(expectRow(row, 'Failed to create file node'), null);
     if (node.type !== 'file') throw new Error('Created node is not a file');
     return node;
   }
@@ -189,7 +198,7 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
       .set({ name, updatedAt: new Date(), updatedBy: userId })
       .where(eq(nodes.id, id))
       .returning();
-    return row ? toNode(row) : undefined;
+    return row ? toNode(row, await this.shareSlugForRow(row)) : undefined;
   }
 
   async moveNode(input: MoveNodeInput): Promise<DataroomNode | undefined> {
@@ -203,7 +212,18 @@ export class DrizzleDataroomsRepository implements DataroomsRepository {
       })
       .where(eq(nodes.id, input.id))
       .returning();
-    return row ? toNode(row) : undefined;
+    return row ? toNode(row, await this.shareSlugForRow(row)) : undefined;
+  }
+
+  /** The share slug for a node row — looked up only for files, which alone can be shared. */
+  private async shareSlugForRow(row: NodeRow): Promise<string | null> {
+    if (row.type !== 'file') return null;
+    const [share] = await this.db
+      .select({ slug: nodeShares.slug })
+      .from(nodeShares)
+      .where(eq(nodeShares.nodeId, row.id))
+      .limit(1);
+    return share?.slug ?? null;
   }
 
   async deleteNode(id: string): Promise<void> {
@@ -257,7 +277,7 @@ function toDataroom(row: DataroomRow): Dataroom {
   };
 }
 
-function toNode(row: NodeRow): DataroomNode {
+function toNode(row: NodeRow, shareSlug: string | null): DataroomNode {
   const base = {
     id: row.id,
     dataroomId: row.dataroomId,
@@ -273,7 +293,7 @@ function toNode(row: NodeRow): DataroomNode {
 
   if (row.type === 'folder') return { ...base, type: 'folder' };
   if (row.size === null) throw new Error(`File node ${row.id} is missing size`);
-  return { ...base, type: 'file', size: row.size };
+  return { ...base, type: 'file', size: row.size, shareSlug };
 }
 
 function toUser(row: UserRow): User {

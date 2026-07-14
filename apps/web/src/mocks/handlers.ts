@@ -10,15 +10,17 @@ import * as db from './db';
 import { MockError } from './db';
 
 /** ApiErrorResponse-shaped body ({ error: { code, message } }) — same contract as the real API. */
-function errorBody(status: number, message: string) {
+function errorBody(status: number, message: string, code?: string) {
   const codes: Record<number, string> = {
     400: 'BAD_REQUEST',
+    401: 'UNAUTHORIZED',
     403: 'FORBIDDEN',
     404: 'NOT_FOUND',
     409: 'CONFLICT',
     413: 'PAYLOAD_TOO_LARGE',
+    429: 'TOO_MANY_REQUESTS',
   };
-  return HttpResponse.json({ error: { code: codes[status] ?? 'ERROR', message } }, { status });
+  return HttpResponse.json({ error: { code: code ?? codes[status] ?? 'ERROR', message } }, { status });
 }
 
 /** Wraps a handler so thrown MockErrors become proper HTTP error responses. */
@@ -29,7 +31,7 @@ function guard<Params extends PathParams>(
     try {
       return await fn(info);
     } catch (error) {
-      if (error instanceof MockError) return errorBody(error.status, error.message);
+      if (error instanceof MockError) return errorBody(error.status, error.message, error.code);
       const message = error instanceof Error ? error.message : 'Unexpected mock error';
       return errorBody(400, message);
     }
@@ -294,6 +296,64 @@ export const handlers = [
       // Header values must be Latin-1 (ByteString): a raw non-ASCII filename
       // (e.g. Cyrillic) makes the Response constructor throw, which the guard
       // would surface as a 400. Send an ASCII fallback plus RFC 5987 filename*.
+      const asciiName = file.name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+      const utf8Name = encodeURIComponent(file.name);
+      return new HttpResponse(blob, {
+        status: 200,
+        headers: {
+          'Content-Type': file.contentType,
+          'Content-Disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+        },
+      });
+    }),
+  ),
+
+  // --- Public share links ---
+
+  http.put(
+    '/api/nodes/:id/share',
+    guard(async ({ params, request }) => {
+      const body = (await request.json()) as { password?: string };
+      return HttpResponse.json(
+        db.upsertShare(params.id as string, body?.password ?? '', currentUserId(request)),
+      );
+    }),
+  ),
+
+  http.get(
+    '/api/nodes/:id/share',
+    guard(async ({ params, request }) => {
+      await delay();
+      return HttpResponse.json(db.getNodeShare(params.id as string, currentUserId(request)));
+    }),
+  ),
+
+  http.delete(
+    '/api/nodes/:id/share',
+    guard(async ({ params, request }) => {
+      db.removeShare(params.id as string, currentUserId(request));
+      return new HttpResponse(null, { status: 204 });
+    }),
+  ),
+
+  // Public (no auth): a share slug + password is the only credential.
+  http.post(
+    '/api/public/shares/:slug/unlock',
+    guard(async ({ params, request }) => {
+      await delay();
+      const body = (await request.json()) as { password?: string };
+      return HttpResponse.json(db.unlockShare(params.slug as string, body?.password ?? ''));
+    }),
+  ),
+
+  http.post(
+    '/api/public/shares/:slug/content',
+    guard(async ({ params, request }) => {
+      const body = (await request.json()) as { password?: string };
+      const file = db.getSharedContent(params.slug as string, body?.password ?? '');
+      // TS 5.7+ types Uint8Array over ArrayBufferLike; BlobPart wants ArrayBuffer-backed views.
+      const bytes = file.bytes as Uint8Array<ArrayBuffer>;
+      const blob = new Blob([bytes], { type: file.contentType });
       const asciiName = file.name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
       const utf8Name = encodeURIComponent(file.name);
       return new HttpResponse(blob, {

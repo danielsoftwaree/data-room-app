@@ -6,6 +6,7 @@ import type { NodeMutations } from '../hooks/use-node-mutations.mutation';
 import { MembersDialog } from './members-dialog';
 import { MoveDialog } from './move-dialog';
 import { PdfViewerDialog } from './pdf-viewer-dialog';
+import { ShareDialog } from './share-dialog';
 
 interface BrowserDialogsProps {
   dataroomId: string;
@@ -117,6 +118,12 @@ export function BrowserDialogs({
       />
 
       <PdfViewerDialog file={dialog?.kind === 'viewer' ? dialog.file : null} onClose={onClose} />
+
+      <ShareDialog
+        file={dialog?.kind === 'share' ? dialog.file : null}
+        dataroomId={dataroomId}
+        onClose={onClose}
+      />
     </>
   );
 }

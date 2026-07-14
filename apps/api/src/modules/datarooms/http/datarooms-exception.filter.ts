@@ -28,5 +28,14 @@ function describe(error: DataroomModuleError): { status: number; code: string } 
   if (error.kind === 'payload-too-large') {
     return { status: HttpStatus.PAYLOAD_TOO_LARGE, code: 'PAYLOAD_TOO_LARGE' };
   }
+  if (error.kind === 'share-not-found') {
+    return { status: HttpStatus.NOT_FOUND, code: 'SHARE_NOT_FOUND' };
+  }
+  if (error.kind === 'invalid-share-password') {
+    return { status: HttpStatus.UNAUTHORIZED, code: 'INVALID_SHARE_PASSWORD' };
+  }
+  if (error.kind === 'share-rate-limited') {
+    return { status: HttpStatus.TOO_MANY_REQUESTS, code: 'SHARE_RATE_LIMITED' };
+  }
   return { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND' };
 }

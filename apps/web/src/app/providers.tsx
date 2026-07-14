@@ -24,10 +24,16 @@ function AuthTokenBridge({ children }: { children: ReactNode }) {
  * no login wall, so an evaluator sees the product immediately.
  */
 export function AppProviders({ children }: { children: ReactNode }) {
+  // The public share page (/share/:slug) must open for signed-out visitors, so
+  // it renders outside the Clerk sign-in gate. Public links are always direct
+  // page loads, so reading the path once at mount is enough (no reactivity).
+  const isPublicRoute =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/share/');
+
   const inner = (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        {publishableKey ? (
+        {publishableKey && !isPublicRoute ? (
           <>
             <SignedIn>
               <AuthTokenBridge>{children}</AuthTokenBridge>

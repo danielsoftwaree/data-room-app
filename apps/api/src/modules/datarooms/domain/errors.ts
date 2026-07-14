@@ -49,3 +49,28 @@ export class PayloadTooLargeError extends DataroomModuleError {
     super(message);
   }
 }
+
+/** Public share endpoints: unknown slug, or the shared node is trashed/missing. */
+export class ShareNotFoundError extends DataroomModuleError {
+  readonly kind = 'share-not-found';
+
+  constructor(message = 'Share link not found') {
+    super(message);
+  }
+}
+
+export class InvalidSharePasswordError extends DataroomModuleError {
+  readonly kind = 'invalid-share-password';
+
+  constructor(message = 'Incorrect password') {
+    super(message);
+  }
+}
+
+export class ShareRateLimitedError extends DataroomModuleError {
+  readonly kind = 'share-rate-limited';
+
+  constructor(message = 'Too many attempts. Try again later.') {
+    super(message);
+  }
+}

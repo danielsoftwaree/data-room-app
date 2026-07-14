@@ -5,7 +5,14 @@
  */
 import { faker } from '@faker-js/faker';
 import { STORAGE_QUOTA_BYTES, UPLOAD } from '@repo/config';
-import type { DataroomDto, EmptyTrashResult, TrashItemDto } from '@repo/contracts';
+import type {
+  DataroomDto,
+  EmptyTrashResult,
+  NodeShareStateDto,
+  ShareDto,
+  SharedFileDto,
+  TrashItemDto,
+} from '@repo/contracts';
 import type {
   ActivityAction,
   Dataroom,
@@ -23,9 +30,11 @@ import {
   nextAvailableName,
   roleAtLeast,
   selectTrashRoots,
+  SHARE_PASSWORD_ERROR_MESSAGES,
   sortNodes,
   validateMoveTarget,
   validateNodeName,
+  validateSharePassword,
 } from '@repo/domain';
 import { makePdfBytes } from './pdf';
 import {
@@ -36,12 +45,15 @@ import {
   type PersistedFavorite,
   type PersistedFile,
   type PersistedMember,
+  type PersistedShare,
 } from './persist';
 
 export class MockError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** Overrides the status→code default so responses match the API's error codes. */
+    public readonly code?: string,
   ) {
     super(message);
     this.name = 'MockError';
@@ -92,6 +104,7 @@ const nodes: DataroomNode[] = [];
 const members: PersistedMember[] = [];
 const favorites: PersistedFavorite[] = [];
 const activity: PersistedActivity[] = [];
+const shares: PersistedShare[] = [];
 const fileContents = new Map<string, PersistedFile>();
 
 const FAKER_SEED = 20260704;
@@ -126,6 +139,7 @@ function persist(): void {
     members,
     favorites,
     activity,
+    shares,
     files: [...fileContents.entries()],
     clock,
   });
@@ -339,6 +353,7 @@ export function createFile(
     updatedBy: userId,
     deletedAt: null,
     deletedBy: null,
+    shareSlug: null,
   };
   nodes.push(file);
   fileContents.set(file.id, { contentType: 'application/pdf', bytes: upload.bytes });
@@ -509,6 +524,127 @@ export function getFileContent(
     throw new MockError(404, 'File not found');
   }
   requireMember(node.dataroomId, userId);
+  return { name: node.name, contentType: stored.contentType, bytes: stored.bytes };
+}
+
+// --- Public share links (mirrors ShareService on the real API) ---
+
+function shareSlug(): string {
+  // URL-safe, unguessable. crypto.randomUUID is plenty of entropy for a mock.
+  return crypto.randomUUID().replace(/-/g, '');
+}
+
+/** The shareable file for a management call: live, a file, and editor-gated. */
+function requireShareableFile(nodeId: string, userId: string): FileNode {
+  const node = getLiveNode(nodeId);
+  if (node.type !== 'file') throw new MockError(400, 'Only files can be shared');
+  requireRole(node.dataroomId, userId, 'editor');
+  return node;
+}
+
+/**
+ * Sets or rotates the password of a file's public share link. Creating mints a
+ * fresh slug; rotating the password KEEPS the existing slug (and createdAt), so
+ * links already handed out keep working.
+ */
+export function upsertShare(nodeId: string, rawPassword: string, userId: string): ShareDto {
+  const node = requireShareableFile(nodeId, userId);
+  const validation = validateSharePassword(rawPassword);
+  if (!validation.ok) throw new MockError(400, SHARE_PASSWORD_ERROR_MESSAGES[validation.error]);
+
+  const existing = shares.find((share) => share.nodeId === nodeId);
+  if (existing) {
+    existing.password = validation.password;
+    node.shareSlug = existing.slug;
+    persist();
+    return { slug: existing.slug, createdAt: existing.createdAt };
+  }
+
+  const ts = tick();
+  const share: PersistedShare = {
+    nodeId,
+    slug: shareSlug(),
+    password: validation.password,
+    createdAt: ts,
+  };
+  shares.push(share);
+  node.shareSlug = share.slug;
+  recordNodeActivity(node, 'share.created', userId, ts);
+  persist();
+  return { slug: share.slug, createdAt: share.createdAt };
+}
+
+export function getNodeShare(nodeId: string, userId: string): NodeShareStateDto {
+  const node = getLiveNode(nodeId);
+  requireMember(node.dataroomId, userId);
+  const share = shares.find((candidate) => candidate.nodeId === nodeId);
+  return { share: share ? { slug: share.slug, createdAt: share.createdAt } : null };
+}
+
+/** Removes a file's share link. Idempotent: removing an absent link is a no-op. */
+export function removeShare(nodeId: string, userId: string): void {
+  const node = requireShareableFile(nodeId, userId);
+  const existing = shares.find((share) => share.nodeId === nodeId);
+  if (!existing) return;
+  removeWhere(shares, (share) => share.nodeId === nodeId);
+  node.shareSlug = null;
+  recordNodeActivity(node, 'share.removed', userId, tick());
+  persist();
+}
+
+/**
+ * Resolves a public slug to its live file. A trashed file (or an unknown slug)
+ * is indistinguishable from "no such link" on purpose — the public surface
+ * never reveals whether a file exists but is hidden.
+ */
+function requireSharedFile(slug: string): { share: PersistedShare; node: FileNode } {
+  const share = shares.find((candidate) => candidate.slug === slug);
+  const node = share ? nodes.find((candidate) => candidate.id === share.nodeId) : null;
+  if (!share || !node || node.type !== 'file' || node.deletedAt !== null) {
+    throw new MockError(404, 'Share link not found', 'SHARE_NOT_FOUND');
+  }
+  return { share, node };
+}
+
+// Failed-unlock throttle per slug, mirroring the API's rate limiter. In-memory
+// only (real wall-clock, resets on reload) — deliberate for a dev mock.
+const RATE_LIMIT_MAX_FAILURES = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const failedUnlockTimes = new Map<string, number[]>();
+
+/** 429 after too many wrong passwords, 401 on a wrong one; success clears the count. */
+function checkSharePassword(share: PersistedShare, password: string): void {
+  const now = Date.now();
+  const recent = (failedUnlockTimes.get(share.slug) ?? []).filter(
+    (at) => now - at < RATE_LIMIT_WINDOW_MS,
+  );
+  if (recent.length >= RATE_LIMIT_MAX_FAILURES) {
+    throw new MockError(429, 'Too many attempts. Try again later.', 'SHARE_RATE_LIMITED');
+  }
+  if (share.password !== password) {
+    failedUnlockTimes.set(share.slug, [...recent, now]);
+    throw new MockError(401, 'Incorrect password', 'INVALID_SHARE_PASSWORD');
+  }
+  failedUnlockTimes.delete(share.slug);
+}
+
+/** Public: verify the password and return file metadata (no ids, no owner). */
+export function unlockShare(slug: string, password: string): SharedFileDto {
+  const { share, node } = requireSharedFile(slug);
+  checkSharePassword(share, password);
+  const stored = fileContents.get(node.id);
+  return { name: node.name, size: node.size, contentType: stored?.contentType ?? 'application/pdf' };
+}
+
+/** Public: verify the password and return the raw file bytes for preview/download. */
+export function getSharedContent(
+  slug: string,
+  password: string,
+): { name: string; contentType: string; bytes: Uint8Array } {
+  const { share, node } = requireSharedFile(slug);
+  checkSharePassword(share, password);
+  const stored = fileContents.get(node.id);
+  if (!stored) throw new MockError(404, 'Share link not found', 'SHARE_NOT_FOUND');
   return { name: node.name, contentType: stored.contentType, bytes: stored.bytes };
 }
 
@@ -822,6 +958,7 @@ function removeNodes(ids: Set<string>): void {
     }
   }
   removeWhere(favorites, (favorite) => favorite.nodeId !== null && ids.has(favorite.nodeId));
+  removeWhere(shares, (share) => ids.has(share.nodeId));
 }
 
 function touchDataroom(dataroomId: string, ts: number, userId: string): void {
@@ -912,6 +1049,7 @@ export async function initStore(): Promise<void> {
     members.push(...persisted.members);
     favorites.push(...persisted.favorites);
     activity.push(...persisted.activity);
+    if (persisted.shares) shares.push(...persisted.shares);
     for (const [id, file] of persisted.files) fileContents.set(id, file);
     clock = persisted.clock;
     return;
@@ -927,6 +1065,7 @@ export async function resetStore(): Promise<void> {
   members.length = 0;
   favorites.length = 0;
   activity.length = 0;
+  shares.length = 0;
   fileContents.clear();
   clock = CLOCK_START;
   faker.seed(FAKER_SEED);

@@ -217,6 +217,7 @@ export class FakeDataroomsRepository implements DataroomsRepository {
       updatedBy: input.userId,
       deletedAt: null,
       deletedBy: null,
+      shareSlug: null,
     };
     this.nodes.set(node.id, node);
     return node;

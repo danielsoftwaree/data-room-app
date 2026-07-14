@@ -241,5 +241,7 @@ function node(input: {
     deletedAt: null,
     deletedBy: null,
   };
-  return input.type === 'folder' ? { ...base, type: 'folder' } : { ...base, type: 'file', size: 1 };
+  return input.type === 'folder'
+    ? { ...base, type: 'folder' }
+    : { ...base, type: 'file', size: 1, shareSlug: null };
 }

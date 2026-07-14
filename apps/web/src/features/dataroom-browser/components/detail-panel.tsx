@@ -117,6 +117,12 @@ export function DetailPanel({
             <dd>{owner?.name ?? '—'}</dd>
             <dt className="text-muted-foreground">Access</dt>
             <dd>{formatCount(memberCount, 'member')}</dd>
+            {node.type === 'file' ? (
+              <>
+                <dt className="text-muted-foreground">Sharing</dt>
+                <dd>{node.shareSlug ? 'Shared via link' : 'Private'}</dd>
+              </>
+            ) : null}
             <dt className="text-muted-foreground">Location</dt>
             <dd className="break-words">{path.length ? `/${path.join('/')}` : '/Root'}</dd>
           </dl>

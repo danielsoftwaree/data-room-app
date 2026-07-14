@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as ShareSlugRouteImport } from './routes/share.$slug'
 import { Route as AppTrashRouteImport } from './routes/_app.trash'
 import { Route as AppFavoritesRouteImport } from './routes/_app.favorites'
 import { Route as AppDataroomsDataroomIdRouteImport } from './routes/_app.datarooms.$dataroomId'
@@ -31,6 +32,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const ShareSlugRoute = ShareSlugRouteImport.update({
+  id: '/share/$slug',
+  path: '/share/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppTrashRoute = AppTrashRouteImport.update({
   id: '/trash',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/design-system': typeof DesignSystemRoute
   '/favorites': typeof AppFavoritesRoute
   '/trash': typeof AppTrashRoute
+  '/share/$slug': typeof ShareSlugRoute
   '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
   '/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
   '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
   '/favorites': typeof AppFavoritesRoute
   '/trash': typeof AppTrashRoute
+  '/share/$slug': typeof ShareSlugRoute
   '/': typeof AppIndexRoute
   '/datarooms/$dataroomId': typeof AppDataroomsDataroomIdIndexRoute
   '/datarooms/$dataroomId/folders/$folderId': typeof AppDataroomsDataroomIdFoldersFolderIdRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/design-system': typeof DesignSystemRoute
   '/_app/favorites': typeof AppFavoritesRoute
   '/_app/trash': typeof AppTrashRoute
+  '/share/$slug': typeof ShareSlugRoute
   '/_app/': typeof AppIndexRoute
   '/_app/datarooms/$dataroomId': typeof AppDataroomsDataroomIdRouteWithChildren
   '/_app/datarooms/$dataroomId/': typeof AppDataroomsDataroomIdIndexRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/favorites'
     | '/trash'
+    | '/share/$slug'
     | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/'
     | '/datarooms/$dataroomId/folders/$folderId'
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/favorites'
     | '/trash'
+    | '/share/$slug'
     | '/'
     | '/datarooms/$dataroomId'
     | '/datarooms/$dataroomId/folders/$folderId'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/_app/favorites'
     | '/_app/trash'
+    | '/share/$slug'
     | '/_app/'
     | '/_app/datarooms/$dataroomId'
     | '/_app/datarooms/$dataroomId/'
@@ -121,6 +133,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   DesignSystemRoute: typeof DesignSystemRoute
+  ShareSlugRoute: typeof ShareSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/share/$slug': {
+      id: '/share/$slug'
+      path: '/share/$slug'
+      fullPath: '/share/$slug'
+      preLoaderRoute: typeof ShareSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/trash': {
       id: '/_app/trash'
@@ -220,6 +240,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   DesignSystemRoute: DesignSystemRoute,
+  ShareSlugRoute: ShareSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -21,5 +21,5 @@ export function toDataroomNode(dto: NodeDto): DataroomNode {
   };
   return dto.type === 'folder'
     ? { ...base, type: 'folder' }
-    : { ...base, type: 'file', size: dto.size ?? 0 };
+    : { ...base, type: 'file', size: dto.size ?? 0, shareSlug: dto.shareSlug ?? null };
 }

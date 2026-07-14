@@ -7,7 +7,8 @@ export type BrowserDialog =
   | { kind: 'rename'; node: DataroomNode }
   | { kind: 'move'; targets: DataroomNode[] }
   | { kind: 'members' }
-  | { kind: 'viewer'; file: FileNode };
+  | { kind: 'viewer'; file: FileNode }
+  | { kind: 'share'; file: FileNode };
 
 /** One state for all browser modals, so two can never fight over the screen. */
 export function useBrowserDialogs() {
@@ -19,6 +20,7 @@ export function useBrowserDialogs() {
     openMove: (targets: DataroomNode[]) => setDialog({ kind: 'move', targets }),
     openMembers: () => setDialog({ kind: 'members' }),
     openViewer: (file: FileNode) => setDialog({ kind: 'viewer', file }),
+    openShare: (file: FileNode) => setDialog({ kind: 'share', file }),
     close: () => setDialog(null),
   };
 }

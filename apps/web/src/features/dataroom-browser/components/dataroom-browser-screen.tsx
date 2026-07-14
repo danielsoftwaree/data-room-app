@@ -83,6 +83,17 @@ function DocumentsWorkspace({
     toast.success('Link copied');
   }
 
+  // Public share link for an already-shared file — copied without opening the dialog.
+  function copyShareLink(node: DataroomNode): void {
+    if (node.type !== 'file' || !node.shareSlug) return;
+    void navigator.clipboard.writeText(`${window.location.origin}/share/${node.shareSlug}`);
+    toast.success('Link copied');
+  }
+
+  function openShare(node: DataroomNode): void {
+    if (node.type === 'file') dialogs.openShare(node);
+  }
+
   // One context menu for the whole area: resolve which node (if any) was
   // right-clicked from the DOM so the menu always opens at the cursor with the
   // right target.
@@ -254,6 +265,7 @@ function DocumentsWorkspace({
                     onSelectRow={preview.openPreview}
                     onOpen={openNode}
                     onToggleAll={selection.toggleAll}
+                    onShare={openShare}
                     onRename={dialogs.openRename}
                     onMove={(node) => dialogs.openMove([node])}
                     onDelete={(node) => void trashNodes([node])}
@@ -283,6 +295,8 @@ function DocumentsWorkspace({
               onOpenNode={openNode}
               onToggleFavorite={(id) => favorites.toggle(dataroomId, id)}
               onCopyLink={copyLink}
+              onShare={openShare}
+              onCopyShareLink={copyShareLink}
               onRename={dialogs.openRename}
               onMove={(node) => dialogs.openMove([node])}
               onTrash={(node) => void trashNodes([node])}

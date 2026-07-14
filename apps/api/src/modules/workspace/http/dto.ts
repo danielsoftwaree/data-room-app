@@ -119,6 +119,8 @@ export class ActivityDto implements ActivityContract {
       'member.added',
       'member.updated',
       'member.removed',
+      'share.created',
+      'share.removed',
     ],
   })
   action!: ActivityAction;

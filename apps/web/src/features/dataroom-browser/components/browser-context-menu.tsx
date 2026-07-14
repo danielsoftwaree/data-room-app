@@ -7,6 +7,7 @@ import {
 } from '@repo/ui/components/context-menu';
 import {
   CheckSquareIcon,
+  CopyIcon,
   EyeIcon,
   FolderOpenIcon,
   FolderPlusIcon,
@@ -30,6 +31,10 @@ interface BrowserContextMenuProps {
   onOpenNode: (node: DataroomNode) => void;
   onToggleFavorite: (nodeId: string) => void;
   onCopyLink: () => void;
+  /** Open the share dialog for a file (create/manage its public link). */
+  onShare: (node: DataroomNode) => void;
+  /** Copy an already-shared file's public link without opening the dialog. */
+  onCopyShareLink: (node: DataroomNode) => void;
   onRename: (node: DataroomNode) => void;
   onMove: (node: DataroomNode) => void;
   onTrash: (node: DataroomNode) => void;
@@ -53,6 +58,8 @@ export function BrowserContextMenu({
   onOpenNode,
   onToggleFavorite,
   onCopyLink,
+  onShare,
+  onCopyShareLink,
   onRename,
   onMove,
   onTrash,
@@ -77,9 +84,21 @@ export function BrowserContextMenu({
             <LinkIcon />
             Copy link
           </ContextMenuItem>
+          {contextNode.type === 'file' && contextNode.shareSlug ? (
+            <ContextMenuItem onSelect={() => onCopyShareLink(contextNode)}>
+              <CopyIcon />
+              Copy share link
+            </ContextMenuItem>
+          ) : null}
           {canEdit ? (
             <>
               <ContextMenuSeparator />
+              {contextNode.type === 'file' ? (
+                <ContextMenuItem onSelect={() => onShare(contextNode)}>
+                  <LinkIcon />
+                  Share…
+                </ContextMenuItem>
+              ) : null}
               <ContextMenuItem onSelect={() => onRename(contextNode)}>
                 <PencilIcon />
                 Rename

@@ -329,6 +329,7 @@ function DocumentsWorkspace({
           isFavorite={favorites.isFavorite(dataroomId, previewNode.id)}
           onToggleFavorite={() => favorites.toggle(dataroomId, previewNode.id)}
           onClose={preview.closePreview}
+          onShare={openShare}
           onRename={dialogs.openRename}
           onMove={dialogs.openMove}
           onDelete={(targets) => void trashNodes(targets)}

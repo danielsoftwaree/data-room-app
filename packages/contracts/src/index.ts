@@ -157,6 +157,8 @@ export interface SharedChildDto {
   id: string;
   name: string;
   type: NodeType;
+  /** Unix epoch ms of the last modification. */
+  updatedAt: number;
   /** File size in bytes; absent for folders. */
   size?: number;
   /** Present for folders: their (recursive) live children. */
@@ -167,6 +169,8 @@ export interface SharedChildDto {
 export interface SharedNodeDto {
   name: string;
   type: NodeType;
+  /** Unix epoch ms of the last modification. */
+  updatedAt: number;
   /** File size in bytes; absent for folders. */
   size?: number;
   /** Present for files. */

@@ -7,7 +7,15 @@ import { Button } from '@repo/ui/components/button';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/tabs';
 import { cn } from '@repo/ui/lib/utils';
-import { Maximize2Icon, PencilIcon, StarIcon, Trash2Icon, XIcon, MoveIcon } from 'lucide-react';
+import {
+  LinkIcon,
+  Maximize2Icon,
+  MoveIcon,
+  PencilIcon,
+  StarIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
 import { childrenOf, folderPath, subtreeCounts } from '../helpers/node-tree';
 import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
 import { PdfDocument, PdfPage } from '@/shared/lib/pdf-viewer';
@@ -24,6 +32,7 @@ interface DetailPanelProps {
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onClose: () => void;
+  onShare: (node: DataroomNode) => void;
   onRename: (node: DataroomNode) => void;
   onMove: (nodes: DataroomNode[]) => void;
   onDelete: (nodes: DataroomNode[]) => void;
@@ -40,6 +49,7 @@ export function DetailPanel({
   isFavorite,
   onToggleFavorite,
   onClose,
+  onShare,
   onRename,
   onMove,
   onDelete,
@@ -117,12 +127,8 @@ export function DetailPanel({
             <dd>{owner?.name ?? '—'}</dd>
             <dt className="text-muted-foreground">Access</dt>
             <dd>{formatCount(memberCount, 'member')}</dd>
-            {node.type === 'file' ? (
-              <>
-                <dt className="text-muted-foreground">Sharing</dt>
-                <dd>{node.shareSlug ? 'Shared via link' : 'Private'}</dd>
-              </>
-            ) : null}
+            <dt className="text-muted-foreground">Sharing</dt>
+            <dd>{node.shareSlug ? 'Shared via link' : 'Private'}</dd>
             <dt className="text-muted-foreground">Location</dt>
             <dd className="break-words">{path.length ? `/${path.join('/')}` : '/Root'}</dd>
           </dl>
@@ -134,19 +140,25 @@ export function DetailPanel({
       </Tabs>
 
       {canEdit ? (
-        <footer className="grid grid-cols-3 gap-2 border-t p-4">
-          <Button variant="outline" onClick={() => onRename(node)}>
-            <PencilIcon className="size-4" />
-            Rename
+        <footer className="grid gap-2 border-t p-4">
+          <Button onClick={() => onShare(node)}>
+            <LinkIcon className="size-4" />
+            Share
           </Button>
-          <Button variant="outline" onClick={() => onMove([node])}>
-            <MoveIcon className="size-4" />
-            Move
-          </Button>
-          <Button variant="outline" className="text-destructive" onClick={() => onDelete([node])}>
-            <Trash2Icon className="size-4" />
-            Delete
-          </Button>
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="outline" onClick={() => onRename(node)}>
+              <PencilIcon className="size-4" />
+              Rename
+            </Button>
+            <Button variant="outline" onClick={() => onMove([node])}>
+              <MoveIcon className="size-4" />
+              Move
+            </Button>
+            <Button variant="outline" className="text-destructive" onClick={() => onDelete([node])}>
+              <Trash2Icon className="size-4" />
+              Delete
+            </Button>
+          </div>
         </footer>
       ) : null}
     </aside>

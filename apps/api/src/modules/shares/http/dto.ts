@@ -77,6 +77,9 @@ export class SharedChildDto implements SharedChildContract {
   @ApiProperty({ enum: ['folder', 'file'] })
   type!: NodeType;
 
+  @ApiProperty({ description: 'Unix epoch ms of the last modification' })
+  updatedAt!: number;
+
   @ApiProperty({ required: false, description: 'File size in bytes (files only)' })
   size?: number;
 
@@ -94,6 +97,9 @@ export class SharedNodeDto implements SharedNodeContract {
 
   @ApiProperty({ enum: ['folder', 'file'] })
   type!: NodeType;
+
+  @ApiProperty({ description: 'Unix epoch ms of the last modification' })
+  updatedAt!: number;
 
   @ApiProperty({ required: false, description: 'File size in bytes (files only)' })
   size?: number;

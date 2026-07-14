@@ -191,6 +191,19 @@ function DocumentRow({
       <span className="flex items-center justify-end gap-0.5">
         <FavoriteButton favorite={isFavorite(node.id)} onToggle={() => onToggleFavorite(node.id)} />
         {canEdit ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Share ${node.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onShare(node);
+            }}
+          >
+            <LinkIcon className="size-4 text-muted-foreground" />
+          </Button>
+        ) : null}
+        {canEdit ? (
           <RowActions
             node={node}
             onShare={onShare}

@@ -654,11 +654,12 @@ function checkSharePassword(share: PersistedShare, password: string | null | und
 function sharedSubtree(root: DataroomNode): SharedChildDto[] {
   const live = nodes.filter((n) => n.dataroomId === root.dataroomId && n.deletedAt === null);
   const build = (parentId: string): SharedChildDto[] =>
-    sortNodes(live.filter((n) => n.parentId === parentId)).map((n) =>
-      n.type === 'file'
-        ? { id: n.id, name: n.name, type: 'file' as const, size: n.size }
-        : { id: n.id, name: n.name, type: 'folder' as const, children: build(n.id) },
-    );
+    sortNodes(live.filter((n) => n.parentId === parentId)).map((n) => {
+      const base = { id: n.id, name: n.name, updatedAt: n.updatedAt };
+      return n.type === 'file'
+        ? { ...base, type: 'file' as const, size: n.size }
+        : { ...base, type: 'folder' as const, children: build(n.id) };
+    });
   return build(root.id);
 }
 
@@ -671,11 +672,17 @@ export function unlockShare(slug: string, password: string | null | undefined): 
     return {
       name: node.name,
       type: 'file',
+      updatedAt: node.updatedAt,
       size: node.size,
       contentType: stored?.contentType ?? 'application/pdf',
     };
   }
-  return { name: node.name, type: 'folder', children: sharedSubtree(node) };
+  return {
+    name: node.name,
+    type: 'folder',
+    updatedAt: node.updatedAt,
+    children: sharedSubtree(node),
+  };
 }
 
 /**

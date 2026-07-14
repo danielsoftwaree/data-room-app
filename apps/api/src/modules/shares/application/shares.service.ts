@@ -126,9 +126,20 @@ export class SharesService {
   async unlockShare(slug: string, rawPassword: string | null | undefined): Promise<SharedNodeDto> {
     const node = await this.openShare(slug, rawPassword);
     if (node.type === 'file') {
-      return { name: node.name, type: 'file', size: node.size, contentType: 'application/pdf' };
+      return {
+        name: node.name,
+        type: 'file',
+        updatedAt: node.updatedAt,
+        size: node.size,
+        contentType: 'application/pdf',
+      };
     }
-    return { name: node.name, type: 'folder', children: await this.sharedSubtree(node) };
+    return {
+      name: node.name,
+      type: 'folder',
+      updatedAt: node.updatedAt,
+      children: await this.sharedSubtree(node),
+    };
   }
 
   /**
@@ -185,11 +196,12 @@ export class SharesService {
       live
         .filter((node) => node.parentId === parentId)
         .sort(byFoldersThenName)
-        .map((node) =>
-          node.type === 'file'
-            ? { id: node.id, name: node.name, type: 'file' as const, size: node.size }
-            : { id: node.id, name: node.name, type: 'folder' as const, children: build(node.id) },
-        );
+        .map((node) => {
+          const base = { id: node.id, name: node.name, updatedAt: node.updatedAt };
+          return node.type === 'file'
+            ? { ...base, type: 'file' as const, size: node.size }
+            : { ...base, type: 'folder' as const, children: build(node.id) };
+        });
     return build(root.id);
   }
 

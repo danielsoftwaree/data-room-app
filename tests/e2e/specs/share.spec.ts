@@ -3,7 +3,6 @@ import {
   createDataroom,
   createFolder,
   deleteDataroom,
-  openRowMenu,
   rowName,
   uniqueName,
   uploadPdf,
@@ -22,16 +21,22 @@ test('shares a file behind a password, opens it publicly, and revokes the link',
     await page.goto(`/datarooms/${dataroom.id}`);
     await expect(rowName(page, 'shared.pdf')).toBeVisible();
 
-    // Owner opens the share dialog from the row actions and sets a password.
-    await openRowMenu(page, 'shared.pdf');
-    await page.getByRole('menuitem', { name: /^Share/ }).click();
+    // Owner opens the share dialog from the row's quick share button and turns
+    // the link on via the General access control.
+    await page.getByRole('button', { name: 'Share shared.pdf' }).click();
     const shareDialog = page.getByRole('dialog');
-    await shareDialog.getByLabel('Password').fill(password);
-    await shareDialog.getByRole('button', { name: 'Create link' }).click();
+    await shareDialog.getByRole('combobox', { name: 'General access' }).click();
+    await page.getByRole('option', { name: 'Anyone with the link' }).click();
 
     // The link is shown read-only once created; extract it for the public visit.
     const shareUrl = await shareDialog.getByLabel('Share link').inputValue();
     expect(shareUrl).toContain('/share/');
+
+    // The password is a separate toggle on top of the link.
+    await shareDialog.getByRole('switch', { name: 'Require password' }).click();
+    await shareDialog.getByPlaceholder('At least 4 characters').fill(password);
+    await shareDialog.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Password set')).toBeVisible();
 
     // A fresh, unauthenticated context stands in for an external recipient.
     const publicContext = await browser.newContext();
@@ -51,9 +56,9 @@ test('shares a file behind a password, opens it publicly, and revokes the link',
       await expect(publicPage.getByRole('heading', { name: 'shared.pdf' })).toBeVisible();
       await expect(publicPage.getByRole('link', { name: 'Download' })).toBeVisible();
 
-      // Owner revokes the link back in the app (confirm inside the alert dialog).
-      await page.getByRole('button', { name: 'Remove link' }).click();
-      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove link' }).click();
+      // Owner revokes the link by switching access back to Restricted.
+      await shareDialog.getByRole('combobox', { name: 'General access' }).click();
+      await page.getByRole('option', { name: 'Restricted' }).click();
       await expect(page.getByText('Share link removed')).toBeVisible();
 
       // The public link no longer works: the probe on load hits the dead-link state.
@@ -80,11 +85,11 @@ test('shares a folder without a password and browses it anonymously', async ({
     await page.goto(`/datarooms/${dataroom.id}`);
     await expect(rowName(page, 'Legal')).toBeVisible();
 
-    // Owner creates a passwordless link for the folder.
-    await openRowMenu(page, 'Legal');
-    await page.getByRole('menuitem', { name: /^Share/ }).click();
+    // Owner creates a passwordless link straight from the row's share button.
+    await page.getByRole('button', { name: 'Share Legal' }).click();
     const shareDialog = page.getByRole('dialog');
-    await shareDialog.getByRole('button', { name: 'Create link' }).click();
+    await shareDialog.getByRole('combobox', { name: 'General access' }).click();
+    await page.getByRole('option', { name: 'Anyone with the link' }).click();
     const shareUrl = await shareDialog.getByLabel('Share link').inputValue();
     expect(shareUrl).toContain('/share/');
 
@@ -95,8 +100,8 @@ test('shares a folder without a password and browses it anonymously', async ({
       await publicPage.goto(shareUrl);
       await expect(publicPage.getByRole('heading', { name: 'Legal' })).toBeVisible();
 
-      // Opening a nested file swaps the listing for the PDF preview.
-      await publicPage.getByRole('button', { name: /nda\.pdf/ }).click();
+      // The listing behaves like a drive: opening a file shows the PDF preview.
+      await publicPage.getByRole('button', { name: 'nda.pdf', exact: true }).click();
       await expect(publicPage.getByRole('heading', { name: 'nda.pdf' })).toBeVisible();
       await expect(publicPage.getByRole('link', { name: 'Download' })).toBeVisible();
     } finally {

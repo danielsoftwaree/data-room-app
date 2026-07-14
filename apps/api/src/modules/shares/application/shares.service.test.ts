@@ -370,6 +370,7 @@ describe('shares service', () => {
     expect(meta).toEqual({
       name: 'report.pdf',
       type: 'file',
+      updatedAt: 1,
       size: PDF.byteLength,
       contentType: 'application/pdf',
     });
@@ -450,7 +451,10 @@ describe('shares service', () => {
         id: sub.id,
         name: 'Contracts',
         type: 'folder',
-        children: [{ id: inner.id, name: 'nda.pdf', type: 'file', size: PDF.byteLength }],
+        updatedAt: 1,
+        children: [
+          { id: inner.id, name: 'nda.pdf', type: 'file', updatedAt: 1, size: PDF.byteLength },
+        ],
       },
     ]);
 

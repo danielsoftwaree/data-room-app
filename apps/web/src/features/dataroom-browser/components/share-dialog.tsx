@@ -3,16 +3,6 @@ import { getApiErrorMessage, useGetNodeShare } from '@repo/api-client';
 import type { ShareDto } from '@repo/contracts';
 import type { DataroomNode } from '@repo/domain';
 import { SHARE_PASSWORD_ERROR_MESSAGES, validateSharePassword } from '@repo/domain';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@repo/ui/components/alert-dialog';
 import { Button } from '@repo/ui/components/button';
 import {
   Dialog,
@@ -23,9 +13,17 @@ import {
 } from '@repo/ui/components/dialog';
 import { Input } from '@repo/ui/components/input';
 import { Label } from '@repo/ui/components/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@repo/ui/components/select';
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { toast } from '@repo/ui/components/sonner';
-import { CopyIcon, LinkIcon, Trash2Icon } from 'lucide-react';
+import { Switch } from '@repo/ui/components/switch';
+import { CopyIcon, GlobeIcon, LinkIcon, LockKeyholeIcon, UsersIcon } from 'lucide-react';
 import { useShareMutations } from '../hooks/use-share-mutations.mutation';
 
 interface ShareDialogProps {
@@ -35,20 +33,11 @@ interface ShareDialogProps {
   onClose: () => void;
 }
 
-/** Validates the optional share password: empty = anonymous link, else domain rules apply. */
-function validateOptionalPassword(
-  raw: string,
-): { ok: true; password: string | null } | { ok: false; error: string } {
-  if (raw === '') return { ok: true, password: null };
-  const result = validateSharePassword(raw);
-  return result.ok
-    ? { ok: true, password: result.password }
-    : { ok: false, error: SHARE_PASSWORD_ERROR_MESSAGES[result.error] };
-}
-
 /**
- * Create or remove a node's public share link, and manage its optional
- * password. Anyone with the link can open the share; a password adds a gate.
+ * Google-Drive-style link sharing for a file or folder. One "General access"
+ * control switches between Restricted (members only, no link) and Anyone with
+ * the link; an optional password is a separate toggle on top of the link, so
+ * the common path — copy a link in two clicks — stays front and center.
  *
  * Radix unmounts DialogContent on close, so the body (and its password inputs)
  * remounts fresh on every open — no reset effect, and passwords never linger in
@@ -63,7 +52,9 @@ export function ShareDialog({ node, dataroomId, onClose }: Readonly<ShareDialogP
       }}
     >
       <DialogContent>
-        {node ? <ShareDialogBody key={node.id} node={node} dataroomId={dataroomId} /> : null}
+        {node ? (
+          <ShareDialogBody key={node.id} node={node} dataroomId={dataroomId} onDone={onClose} />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -72,234 +63,256 @@ export function ShareDialog({ node, dataroomId, onClose }: Readonly<ShareDialogP
 function ShareDialogBody({
   node,
   dataroomId,
-}: Readonly<{ node: DataroomNode; dataroomId: string }>) {
+  onDone,
+}: Readonly<{ node: DataroomNode; dataroomId: string; onDone: () => void }>) {
   const shareState = useGetNodeShare(node.id);
   const mutations = useShareMutations(dataroomId);
+  const { upsertShare, removeShare } = mutations;
   const share = shareState.data?.data.share ?? null;
   const noun = node.type === 'folder' ? 'folder' : 'file';
+  const shareUrl = share ? `${window.location.origin}/share/${share.slug}` : null;
+  const busy = upsertShare.isPending || removeShare.isPending;
+  const serverError =
+    (upsertShare.isError ? getApiErrorMessage(upsertShare.error) : null) ??
+    (removeShare.isError ? getApiErrorMessage(removeShare.error) : null);
+
+  function copyLink(): void {
+    if (!shareUrl) return;
+    void navigator.clipboard.writeText(shareUrl);
+    toast.success('Link copied');
+  }
+
+  function changeAccess(value: string): void {
+    if (busy) return;
+    if (value === 'link' && !share) {
+      upsertShare.mutate(
+        { id: node.id, data: { password: null } },
+        { onSuccess: () => toast.success('Share link created') },
+      );
+    } else if (value === 'restricted' && share) {
+      removeShare.mutate({ id: node.id });
+    }
+  }
 
   return (
     <>
       <DialogHeader>
         <DialogTitle className="truncate pr-6 text-left">Share “{node.name}”</DialogTitle>
-        <DialogDescription>
-          Anyone with the link can view this {noun} — no account needed. Add a password to limit who
-          can open it.
+        <DialogDescription className="sr-only">
+          Manage the public share link for this {noun}.
         </DialogDescription>
       </DialogHeader>
 
       {shareState.isPending ? (
         <div className="flex flex-col gap-2 py-2" aria-busy>
-          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-14 w-full" />
           <Skeleton className="h-9 w-2/3" />
         </div>
       ) : shareState.isError ? (
         <p role="alert" className="py-2 text-sm text-destructive">
           {getApiErrorMessage(shareState.error)}
         </p>
-      ) : share ? (
-        <ShareLinkView nodeId={node.id} share={share} mutations={mutations} />
       ) : (
-        <CreateShareForm nodeId={node.id} mutations={mutations} />
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <p className="text-sm font-medium">General access</p>
+            <div className="flex items-center gap-3 rounded-lg border bg-background/60 p-3">
+              <span
+                className={
+                  share
+                    ? 'grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary'
+                    : 'grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground'
+                }
+              >
+                {share ? <GlobeIcon className="size-4" /> : <UsersIcon className="size-4" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={share ? 'link' : 'restricted'}
+                  onValueChange={changeAccess}
+                  disabled={busy}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    aria-label="General access"
+                    className="w-fit border-none bg-transparent font-medium shadow-none dark:bg-transparent"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="restricted">Restricted</SelectItem>
+                    <SelectItem value="link">Anyone with the link</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="px-3 text-xs text-muted-foreground">
+                  {share
+                    ? `Anyone on the internet with the link can view this ${noun}`
+                    : `Only data room members can open this ${noun}`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {share && shareUrl ? (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={shareUrl}
+                  aria-label="Share link"
+                  className="font-mono text-xs"
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+                <Button type="button" variant="outline" onClick={copyLink}>
+                  <CopyIcon className="size-4" />
+                  Copy
+                </Button>
+              </div>
+
+              <PasswordSection nodeId={node.id} share={share} mutations={mutations} busy={busy} />
+            </>
+          ) : null}
+
+          {serverError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {serverError}
+            </p>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-2 border-t pt-4">
+            {share ? (
+              <Button type="button" variant="outline" onClick={copyLink}>
+                <LinkIcon className="size-4" />
+                Copy link
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button type="button" onClick={onDone}>
+              Done
+            </Button>
+          </div>
+        </div>
       )}
     </>
   );
 }
 
-/** No link yet: create it, with an optional password. */
-function CreateShareForm({
-  nodeId,
-  mutations,
-}: Readonly<{ nodeId: string; mutations: ReturnType<typeof useShareMutations> }>) {
-  const { upsertShare } = mutations;
-  const [password, setPassword] = useState('');
-  const [touched, setTouched] = useState(false);
-  const validation = validateOptionalPassword(password);
-  const inlineError = validation.ok ? null : validation.error;
-  const serverError = upsertShare.isError ? getApiErrorMessage(upsertShare.error) : null;
-
-  function submit(): void {
-    setTouched(true);
-    if (!validation.ok || upsertShare.isPending) return;
-    upsertShare.mutate(
-      { id: nodeId, data: { password: validation.password } },
-      { onSuccess: () => toast.success('Share link created') },
-    );
-  }
-
-  return (
-    <form
-      className="grid gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        submit();
-      }}
-    >
-      <Label htmlFor="share-password">Password (optional)</Label>
-      <div className="flex gap-2">
-        <Input
-          id="share-password"
-          type="password"
-          autoFocus
-          autoComplete="new-password"
-          value={password}
-          placeholder="Leave empty for no password"
-          onChange={(event) => setPassword(event.target.value)}
-          onBlur={() => setTouched(true)}
-          aria-invalid={touched && (inlineError !== null || Boolean(serverError))}
-        />
-        <Button type="submit" disabled={!validation.ok || upsertShare.isPending}>
-          <LinkIcon className="size-4" />
-          {upsertShare.isPending ? 'Creating…' : 'Create link'}
-        </Button>
-      </div>
-      {touched && inlineError ? (
-        <p className="text-sm text-destructive">{inlineError}</p>
-      ) : serverError ? (
-        <p className="text-sm text-destructive">{serverError}</p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Without a password, anyone with the link can open it right away.
-        </p>
-      )}
-    </form>
-  );
-}
-
-/** A link exists: show it, allow copy, password changes, and removal. */
-function ShareLinkView({
+/**
+ * The optional password gate on top of an existing link. The switch reflects
+ * whether a password is set; turning it on reveals the inline form (nothing is
+ * saved until Save), turning it off removes the password immediately.
+ */
+function PasswordSection({
   nodeId,
   share,
   mutations,
+  busy,
 }: Readonly<{
   nodeId: string;
   share: ShareDto;
   mutations: ReturnType<typeof useShareMutations>;
+  busy: boolean;
 }>) {
-  const { upsertShare, removeShare } = mutations;
-  const shareUrl = `${window.location.origin}/share/${share.slug}`;
-  const [changing, setChanging] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
+  const { upsertShare } = mutations;
+  const [formOpen, setFormOpen] = useState(false);
+  const checked = share.hasPassword || formOpen;
 
-  function copyLink(): void {
-    void navigator.clipboard.writeText(shareUrl);
-    toast.success('Link copied');
+  function toggle(next: boolean): void {
+    if (busy) return;
+    if (next) {
+      setFormOpen(true);
+    } else if (share.hasPassword) {
+      upsertShare.mutate(
+        { id: nodeId, data: { password: null } },
+        {
+          onSuccess: () => {
+            toast.success('Password removed');
+            setFormOpen(false);
+          },
+        },
+      );
+    } else {
+      setFormOpen(false);
+    }
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="share-link">Share link</Label>
-        <div className="flex gap-2">
-          <Input
-            id="share-link"
-            readOnly
-            value={shareUrl}
-            aria-label="Share link"
-            className="font-mono text-xs"
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <Button type="button" variant="outline" onClick={copyLink}>
-            <CopyIcon className="size-4" />
-            Copy
-          </Button>
+    <div className="grid gap-3 rounded-lg border bg-background/60 p-3">
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+          <LockKeyholeIcon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <Label htmlFor="share-require-password" className="text-sm font-medium">
+            Require password
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {share.hasPassword
+              ? 'Viewers must enter the password to open the link'
+              : 'Add a password on top of the link'}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {share.hasPassword
-            ? 'Password protected — viewers must enter the password.'
-            : 'No password — anyone with the link can open it.'}
-        </p>
+        <Switch
+          id="share-require-password"
+          checked={checked}
+          disabled={busy}
+          onCheckedChange={toggle}
+        />
       </div>
 
-      {changing ? (
-        <ChangePasswordForm
+      {formOpen ? (
+        <PasswordForm
           nodeId={nodeId}
           hasPassword={share.hasPassword}
           pending={upsertShare.isPending}
-          serverError={upsertShare.isError ? getApiErrorMessage(upsertShare.error) : null}
-          onCancel={() => setChanging(false)}
+          onCancel={() => setFormOpen(false)}
           onSubmit={(password) =>
             upsertShare.mutate(
               { id: nodeId, data: { password } },
               {
                 onSuccess: () => {
-                  toast.success(password === null ? 'Password removed' : 'Password updated');
-                  setChanging(false);
+                  toast.success(share.hasPassword ? 'Password updated' : 'Password set');
+                  setFormOpen(false);
                 },
               },
             )
           }
         />
-      ) : (
-        <div className="flex items-center justify-between gap-2 border-t pt-4">
-          <Button type="button" variant="outline" size="sm" onClick={() => setChanging(true)}>
-            {share.hasPassword ? 'Change password' : 'Add password'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setConfirmRemove(true)}
-          >
-            <Trash2Icon className="size-4" />
-            Remove link
+      ) : share.hasPassword ? (
+        <div className="flex items-center justify-between gap-2 pl-12">
+          <p className="text-xs text-muted-foreground">Password is set</p>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setFormOpen(true)}>
+            Change password
           </Button>
         </div>
-      )}
-
-      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove share link?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The link will stop working immediately and anyone you shared it with will lose access.
-              Creating a new link later generates a different address.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={removeShare.isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                removeShare.mutate({ id: nodeId }, { onSuccess: () => setConfirmRemove(false) });
-              }}
-            >
-              {removeShare.isPending ? 'Removing…' : 'Remove link'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      ) : null}
     </div>
   );
 }
 
-/** Inline password form. Empty input removes the password; the link stays the same. */
-function ChangePasswordForm({
+/** Inline password form. The link itself stays the same. */
+function PasswordForm({
   nodeId,
   hasPassword,
   pending,
-  serverError,
   onCancel,
   onSubmit,
 }: Readonly<{
   nodeId: string;
   hasPassword: boolean;
   pending: boolean;
-  serverError: string | null;
   onCancel: () => void;
-  onSubmit: (password: string | null) => void;
+  onSubmit: (password: string) => void;
 }>) {
   const [password, setPassword] = useState('');
   const [touched, setTouched] = useState(false);
-  const validation = validateOptionalPassword(password);
-  const inlineError = validation.ok ? null : validation.error;
+  const validation = validateSharePassword(password);
+  const inlineError = validation.ok ? null : SHARE_PASSWORD_ERROR_MESSAGES[validation.error];
 
   return (
     <form
-      className="grid gap-2 border-t pt-4"
+      className="grid gap-2 pl-12"
       onSubmit={(event) => {
         event.preventDefault();
         setTouched(true);
@@ -307,20 +320,20 @@ function ChangePasswordForm({
         onSubmit(validation.password);
       }}
     >
-      <Label htmlFor={`share-new-password-${nodeId}`}>
+      <Label htmlFor={`share-password-${nodeId}`} className="sr-only">
         {hasPassword ? 'New password' : 'Password'}
       </Label>
       <div className="flex gap-2">
         <Input
-          id={`share-new-password-${nodeId}`}
+          id={`share-password-${nodeId}`}
           type="password"
           autoFocus
           autoComplete="new-password"
           value={password}
-          placeholder={hasPassword ? 'Leave empty to remove the password' : 'At least 4 characters'}
+          placeholder="At least 4 characters"
           onChange={(event) => setPassword(event.target.value)}
           onBlur={() => setTouched(true)}
-          aria-invalid={touched && (inlineError !== null || Boolean(serverError))}
+          aria-invalid={touched && inlineError !== null}
         />
         <Button type="submit" disabled={!validation.ok || pending}>
           {pending ? 'Saving…' : 'Save'}
@@ -329,13 +342,7 @@ function ChangePasswordForm({
           Cancel
         </Button>
       </div>
-      {touched && inlineError ? (
-        <p className="text-sm text-destructive">{inlineError}</p>
-      ) : serverError ? (
-        <p className="text-sm text-destructive">{serverError}</p>
-      ) : (
-        <p className="text-sm text-muted-foreground">The link stays the same.</p>
-      )}
+      {touched && inlineError ? <p className="text-sm text-destructive">{inlineError}</p> : null}
     </form>
   );
 }

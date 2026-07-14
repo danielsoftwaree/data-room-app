@@ -21,16 +21,17 @@ export type ShareMutations = ReturnType<typeof useShareMutations>;
 export function useShareMutations(dataroomId: string) {
   const queryClient = useQueryClient();
   // A share touches the node's share state, its shareSlug in the listing, and
-  // the activity feed — nothing else.
-  const invalidate = (nodeId: string): void => {
-    for (const queryKey of [
-      getGetNodeShareQueryKey(nodeId),
-      getListNodesQueryKey(dataroomId),
-      getListActivityQueryKey(dataroomId),
-    ]) {
-      void queryClient.invalidateQueries({ queryKey });
-    }
-  };
+  // the activity feed — nothing else. Returned (and thus awaited by TanStack
+  // before per-call onSuccess) so callers see fresh share state — the dialog's
+  // password switch reads `hasPassword` right after saving.
+  const invalidate = (nodeId: string): Promise<unknown> =>
+    Promise.all(
+      [
+        getGetNodeShareQueryKey(nodeId),
+        getListNodesQueryKey(dataroomId),
+        getListActivityQueryKey(dataroomId),
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
 
   const upsertShare = useUpsertNodeShare({
     mutation: {

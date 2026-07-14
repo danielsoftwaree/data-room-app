@@ -13,7 +13,15 @@ import { Progress } from '@repo/ui/components/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
-import { LinkIcon, MoreVerticalIcon, MoveIcon, PencilIcon, Trash2Icon, XIcon } from 'lucide-react';
+import {
+  GlobeIcon,
+  MoreVerticalIcon,
+  MoveIcon,
+  PencilIcon,
+  Share2Icon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
 import { formatCount, formatDate, formatFileSize } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
@@ -172,13 +180,13 @@ function DocumentRow({
             <TooltipTrigger asChild>
               <span
                 role="img"
-                aria-label="Shared via link"
+                aria-label="Shared via public link"
                 className="shrink-0 text-muted-foreground"
               >
-                <LinkIcon className="size-3.5" />
+                <GlobeIcon className="size-3.5" />
               </span>
             </TooltipTrigger>
-            <TooltipContent>Shared via link</TooltipContent>
+            <TooltipContent>Shared via public link</TooltipContent>
           </Tooltip>
         ) : null}
       </span>
@@ -191,17 +199,22 @@ function DocumentRow({
       <span className="flex items-center justify-end gap-0.5">
         <FavoriteButton favorite={isFavorite(node.id)} onToggle={() => onToggleFavorite(node.id)} />
         {canEdit ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Share ${node.name}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onShare(node);
-            }}
-          >
-            <LinkIcon className="size-4 text-muted-foreground" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Share ${node.name}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onShare(node);
+                }}
+              >
+                <Share2Icon className="size-4 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Share</TooltipContent>
+          </Tooltip>
         ) : null}
         {canEdit ? (
           <RowActions
@@ -244,7 +257,7 @@ function RowActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => onShare(node)}>
-          <LinkIcon className="size-4" />
+          <Share2Icon className="size-4" />
           Share…
         </DropdownMenuItem>
         <DropdownMenuSeparator />

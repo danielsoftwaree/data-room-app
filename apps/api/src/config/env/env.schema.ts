@@ -28,6 +28,11 @@ const envSchemaBase = z.object({
   S3_ACCESS_KEY_ID: optionalTrimmedString,
   S3_SECRET_ACCESS_KEY: optionalTrimmedString,
   CLERK_SECRET_KEY: optionalTrimmedString,
+  // Signs public share-link slugs (HMAC). TECH DEBT: the dev fallback below is
+  // committed for the test-task scope only — in a real deployment this must be
+  // a mandatory secret from the environment/secret manager (and rotating it
+  // kills every existing link).
+  SHARE_LINK_SECRET: z.string().trim().min(16).default('dev-share-link-secret-change-me'),
 });
 
 export const envSchema = envSchemaBase

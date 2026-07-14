@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
 import { describe, expect, test } from 'bun:test';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SHARE_PASSWORD_ERROR_MESSAGES } from '@repo/domain';
@@ -118,7 +119,8 @@ class FakeDataroomsRepository implements DataroomsRepository {
   seedFile(dataroomId: string, overrides: Partial<FileNode> = {}): FileNode {
     this.seq += 1;
     const node: FileNode = {
-      id: `file-${this.seq}`,
+      // Real UUIDs: signed share slugs embed the node id's bytes.
+      id: randomUUID(),
       dataroomId,
       parentId: null,
       type: 'file',
@@ -140,7 +142,7 @@ class FakeDataroomsRepository implements DataroomsRepository {
   seedFolder(dataroomId: string, overrides: Partial<FolderNode> = {}): FolderNode {
     this.seq += 1;
     const node: FolderNode = {
-      id: `folder-${this.seq}`,
+      id: randomUUID(),
       dataroomId,
       parentId: null,
       type: 'folder',
@@ -347,7 +349,15 @@ function setup(): Harness {
   const tx = { run: <T>(fn: () => Promise<T>): Promise<T> => fn() };
   const clock = { now: 1_000_000 };
   const limiter = new ShareAttemptLimiter(() => clock.now);
-  const service = new SharesService(shares, repo, storage, workspace, tx, limiter);
+  const service = new SharesService(
+    shares,
+    repo,
+    storage,
+    workspace,
+    tx,
+    limiter,
+    'test-share-link-secret',
+  );
   return { service, shares, repo, storage, workspaceRepo, membership, clock };
 }
 
@@ -494,6 +504,16 @@ describe('shares service', () => {
         ShareNotFoundError,
       );
     }
+  });
+
+  test('a forged or tampered slug is rejected by the signature before any lookup', async () => {
+    const h = setup();
+    const file = await seedSharedFile(h);
+    const share = await h.service.upsertShare(file.id, null, JANE);
+
+    // Flip one character of the valid slug: same shape, wrong signature.
+    const tampered = share.slug.slice(0, -1) + (share.slug.endsWith('A') ? 'B' : 'A');
+    await expect(h.service.unlockShare(tampered, null)).rejects.toBeInstanceOf(ShareNotFoundError);
   });
 
   test('a wrong password is INVALID_SHARE_PASSWORD', async () => {

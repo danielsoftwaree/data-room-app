@@ -8,10 +8,10 @@ import { Skeleton } from '@repo/ui/components/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/tabs';
 import { cn } from '@repo/ui/lib/utils';
 import {
-  LinkIcon,
   Maximize2Icon,
   MoveIcon,
   PencilIcon,
+  Share2Icon,
   StarIcon,
   Trash2Icon,
   XIcon,
@@ -142,7 +142,7 @@ export function DetailPanel({
       {canEdit ? (
         <footer className="grid gap-2 border-t p-4">
           <Button onClick={() => onShare(node)}>
-            <LinkIcon className="size-4" />
+            <Share2Icon className="size-4" />
             Share
           </Button>
           <div className="grid grid-cols-3 gap-2">

@@ -3,7 +3,7 @@ import { Checkbox } from '@repo/ui/components/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip';
 import { cn } from '@repo/ui/lib/utils';
 import { FilePdfIcon, FolderIcon as FolderFillIcon } from '@phosphor-icons/react';
-import { LinkIcon } from 'lucide-react';
+import { GlobeIcon } from 'lucide-react';
 import { formatDate } from '@/shared/lib/format';
 import { FavoriteButton } from './favorite-button';
 
@@ -109,11 +109,15 @@ export function DocumentGrid({
               {node.shareSlug ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span role="img" aria-label="Shared via link" className="text-muted-foreground">
-                      <LinkIcon className="size-3" />
+                    <span
+                      role="img"
+                      aria-label="Shared via public link"
+                      className="text-muted-foreground"
+                    >
+                      <GlobeIcon className="size-3" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Shared via link</TooltipContent>
+                  <TooltipContent>Shared via public link</TooltipContent>
                 </Tooltip>
               ) : null}
             </span>

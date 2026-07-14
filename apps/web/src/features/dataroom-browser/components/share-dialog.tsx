@@ -23,7 +23,7 @@ import {
 import { Skeleton } from '@repo/ui/components/skeleton';
 import { toast } from '@repo/ui/components/sonner';
 import { Switch } from '@repo/ui/components/switch';
-import { CopyIcon, GlobeIcon, LinkIcon, LockKeyholeIcon, UsersIcon } from 'lucide-react';
+import { CopyIcon, GlobeIcon, LockKeyholeIcon, UsersIcon } from 'lucide-react';
 import { useShareMutations } from '../hooks/use-share-mutations.mutation';
 
 interface ShareDialogProps {
@@ -179,15 +179,7 @@ function ShareDialogBody({
             </p>
           ) : null}
 
-          <div className="flex items-center justify-between gap-2 border-t pt-4">
-            {share ? (
-              <Button type="button" variant="outline" onClick={copyLink}>
-                <LinkIcon className="size-4" />
-                Copy link
-              </Button>
-            ) : (
-              <span />
-            )}
+          <div className="flex items-center justify-end border-t pt-4">
             <Button type="button" onClick={onDone}>
               Done
             </Button>

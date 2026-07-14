@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NodeShareStateDto, ShareDto, SharedChildDto, SharedNodeDto } from '@repo/contracts';
 import type { DataroomNode, FileNode } from '@repo/domain';
@@ -19,6 +18,7 @@ import { BLOB_STORAGE } from '../../storage/blob-storage';
 import type { BlobStorage } from '../../storage/blob-storage';
 import { WorkspaceService } from '../../workspace/application/workspace.service';
 import { hashSharePassword, verifySharePassword } from '../domain/share-password';
+import { createShareSlug, SHARE_LINK_SECRET, verifyShareSlug } from '../domain/share-slug';
 import { SHARES_REPOSITORY } from '../domain/shares.repository.port';
 import type { NodeShare, SharesRepository } from '../domain/shares.repository.port';
 import { ShareAttemptLimiter } from './share-attempt-limiter';
@@ -43,6 +43,7 @@ export class SharesService {
     @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
     @Inject(TRANSACTION_RUNNER) private readonly tx: TransactionRunner,
     @Inject(ShareAttemptLimiter) private readonly limiter: ShareAttemptLimiter,
+    @Inject(SHARE_LINK_SECRET) private readonly linkSecret: string,
   ) {}
 
   /**
@@ -73,7 +74,7 @@ export class SharesService {
     // transaction. On a slug collision the failed statement aborts the surrounding
     // Postgres transaction, so we retry the whole tx.run with a new slug.
     for (let attempt = 0; attempt < SLUG_RETRIES; attempt++) {
-      const slug = generateSlug();
+      const slug = createShareSlug(nodeId, this.linkSecret);
       try {
         return await this.tx.run(async () => {
           const share = await this.shares.insert({ nodeId, slug, passwordHash, userId });
@@ -229,6 +230,8 @@ export class SharesService {
   private async resolveActiveShare(
     slug: string,
   ): Promise<{ share: NodeShare; node: DataroomNode }> {
+    // A slug that was not minted with our secret is rejected before any lookup.
+    if (!verifyShareSlug(slug, this.linkSecret)) throw new ShareNotFoundError();
     const share = await this.shares.findBySlug(slug);
     if (!share) throw new ShareNotFoundError();
     const node = await this.repository.findNode(share.nodeId);
@@ -254,10 +257,6 @@ function parseSharePassword(raw: string): string {
   const result = validateSharePassword(raw);
   if (!result.ok) throw new InvalidInputError(SHARE_PASSWORD_ERROR_MESSAGES[result.error]);
   return result.password;
-}
-
-function generateSlug(): string {
-  return randomBytes(16).toString('base64url');
 }
 
 function toShareDto(share: NodeShare): ShareDto {

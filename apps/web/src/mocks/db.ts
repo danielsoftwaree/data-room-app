@@ -532,7 +532,9 @@ export function getFileContent(
 // --- Public share links (mirrors ShareService on the real API) ---
 
 function shareSlug(): string {
-  // URL-safe, unguessable. crypto.randomUUID is plenty of entropy for a mock.
+  // URL-safe, unguessable. The real API signs slugs with a server-side secret
+  // (see shares/domain/share-slug.ts); the browser mock has no secret to keep,
+  // so plain randomness stands in for it.
   return crypto.randomUUID().replace(/-/g, '');
 }
 
